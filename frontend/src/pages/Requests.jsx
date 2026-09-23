@@ -44,7 +44,7 @@ export default function Requests() {
         title="Service requests"
         description="Everything you've asked for, from draft to booked."
         actions={
-          <Link to="/requests/new" className="inline-flex h-9 items-center rounded bg-brand-700 px-3 text-sm font-medium text-white no-underline hover:bg-brand-800 hover:no-underline">
+          <Link to="/requests/new" className="inline-flex h-9 items-center rounded bg-brand-700 px-3 text-sm font-medium text-white no-underline hover:bg-brand-800 hover:text-white hover:no-underline">
             New request
           </Link>
         }

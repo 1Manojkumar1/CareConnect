@@ -239,7 +239,7 @@ export default function AppShell() {
                 </Link>
                 <Link
                   to="/register"
-                  className="inline-flex h-8 items-center rounded-md bg-brand-700 px-3 text-[13px] font-medium text-white no-underline shadow-sm transition-colors hover:bg-brand-800 hover:no-underline"
+                  className="inline-flex h-8 items-center rounded-md bg-brand-700 px-3 text-[13px] font-medium text-white no-underline shadow-sm transition-colors hover:bg-brand-800 hover:text-white hover:no-underline"
                 >
                   Get started
                 </Link>

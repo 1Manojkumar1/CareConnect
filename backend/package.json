@@ -13,6 +13,7 @@
     "seed": "node src/seed/run.js catalog",
     "seed:demo": "node src/seed/run.js demo",
     "create-admin": "node scripts/create-admin.js",
+    "set-password": "node scripts/set-password.js",
     "test": "jest --runInBand",
     "lint": "eslint src tests scripts"
   },

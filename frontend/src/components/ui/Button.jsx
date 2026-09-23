@@ -1,10 +1,10 @@
 const tones = {
   primary:
-    'bg-brand-700 text-white shadow-sm hover:bg-brand-800 active:bg-brand-900 disabled:bg-stone-300 disabled:shadow-none',
+    'bg-brand-700 text-white shadow-sm hover:bg-brand-800 hover:text-white active:bg-brand-900 disabled:bg-stone-300 disabled:shadow-none',
   secondary:
     'bg-white text-ink border border-stone-300 hover:bg-stone-50 active:bg-stone-100 disabled:text-stone-400 disabled:border-stone-200',
   danger:
-    'bg-red-700 text-white shadow-sm hover:bg-red-800 active:bg-red-900 disabled:bg-stone-300',
+    'bg-red-700 text-white shadow-sm hover:bg-red-800 hover:text-white active:bg-red-900 disabled:bg-stone-300',
   ghost:
     'text-brand-700 hover:bg-brand-50 active:bg-brand-100 disabled:text-stone-400',
   subtle:

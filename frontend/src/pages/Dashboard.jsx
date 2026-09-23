@@ -63,7 +63,7 @@ function RecentBookingsList({ bookings, loading, error, role }) {
           role === 'CUSTOMER' && (
             <Link
               to="/requests/new"
-              className="inline-flex h-8 items-center rounded-lg bg-brand-700 px-3 text-[13px] font-medium text-white no-underline hover:bg-brand-800 hover:no-underline"
+              className="inline-flex h-8 items-center rounded-lg bg-brand-700 px-3 text-[13px] font-medium text-white no-underline hover:bg-brand-800 hover:text-white hover:no-underline"
             >
               Request a service
             </Link>
@@ -248,7 +248,7 @@ export default function Dashboard() {
           role === 'CUSTOMER' ? (
             <Link
               to="/requests/new"
-              className="inline-flex h-9 items-center rounded-lg bg-brand-700 px-4 text-[13.5px] font-semibold text-white no-underline shadow-sm transition-all hover:bg-brand-800 hover:no-underline"
+              className="inline-flex h-9 items-center rounded-lg bg-brand-700 px-4 text-[13.5px] font-semibold text-white no-underline shadow-sm transition-all hover:bg-brand-800 hover:text-white hover:no-underline"
             >
               Request a service
             </Link>
@@ -262,7 +262,7 @@ export default function Dashboard() {
           ) : (
             <Link
               to="/admin/operations"
-              className="inline-flex h-9 items-center rounded-lg bg-brand-700 px-4 text-[13.5px] font-semibold text-white no-underline shadow-sm transition-all hover:bg-brand-800 hover:no-underline"
+              className="inline-flex h-9 items-center rounded-lg bg-brand-700 px-4 text-[13.5px] font-semibold text-white no-underline shadow-sm transition-all hover:bg-brand-800 hover:text-white hover:no-underline"
             >
               Operations queue →
             </Link>

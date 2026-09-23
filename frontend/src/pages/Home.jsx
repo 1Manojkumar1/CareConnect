@@ -80,7 +80,7 @@ export default function Home() {
             <div className="flex flex-wrap items-center gap-3">
               <Link
                 to={primaryCTA.to}
-                className="inline-flex h-11 items-center rounded-lg bg-brand-700 px-5 text-[14px] font-semibold text-white no-underline shadow-sm transition-all hover:bg-brand-800 hover:no-underline hover:shadow-md"
+                className="inline-flex h-11 items-center rounded-lg bg-brand-700 px-5 text-[14px] font-semibold text-white no-underline shadow-sm transition-all hover:bg-brand-800 hover:text-white hover:no-underline hover:shadow-md"
               >
                 {primaryCTA.label}
               </Link>

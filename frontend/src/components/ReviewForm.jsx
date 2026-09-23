@@ -97,7 +97,7 @@ export default function ReviewForm({ bookingId, onSuccess, onCancel }) {
           <button
             type="submit"
             disabled={isSubmitting || !selectedRating}
-            className="px-5 py-2 bg-brand-600 text-white rounded-lg text-sm font-medium hover:bg-brand-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="px-5 py-2 bg-brand-600 text-white rounded-lg text-sm font-medium hover:bg-brand-700 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {isSubmitting ? 'Submitting…' : 'Submit Review'}
           </button>

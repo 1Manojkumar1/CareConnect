@@ -43,7 +43,7 @@ export default function AdminStats() {
         <div className="flex gap-2">
           <Link
             to="/admin/operations"
-            className="px-4 py-2 bg-brand-700 text-white rounded-lg text-sm font-medium hover:bg-brand-800 transition-colors shadow-sm"
+            className="px-4 py-2 bg-brand-700 text-white rounded-lg text-sm font-medium hover:bg-brand-800 hover:text-white transition-colors shadow-sm"
           >
             Operations Queue →
           </Link>

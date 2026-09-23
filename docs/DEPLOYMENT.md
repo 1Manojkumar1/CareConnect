@@ -90,7 +90,7 @@ Estimated first-deploy time: **45–75 minutes** (mostly Atlas + DNS).
 
 `render.yaml` is safe to commit: it contains **no secrets** (`sync: false` = dashboard-only, `generateValue` = Render-generated).
 
-## 6. Step 3 — Bootstrap production data (NOT the demo seed)
+## 6. Step 3 — Bootstrap production data
 
 1. Seed the service catalog (idempotent, safe to re-run):
    ```bash
@@ -102,7 +102,66 @@ Estimated first-deploy time: **45–75 minutes** (mostly Atlas + DNS).
    ADMIN_EMAIL=you@example.com ADMIN_PASSWORD='<generated-≥12-chars>' npm run create-admin
    ```
    or `npm run create-admin -- --email=… --password=… [--name=…]`. Promotes the user if the email already exists.
-3. **Do NOT run `npm run seed:demo` against production.** It wipes the database first and installs trivial demo credentials (`123456789`). It exists for local/staging demos only.
+
+### 6a. Full demo dataset in production (explicit owner decision)
+
+> The project owner has chosen to ship production **with** the complete seeded
+> dataset (same accounts and workflows as the local demo). This overrides the
+> default advice below — it is recorded here so the trade-off stays visible.
+
+What it installs: 7 users (`admin1/user1/user2/provider1-3@gmail.com` + `ops1`),
+3 verified provider profiles, 5 requests, 5 quotes, 4 bookings, 2 invoices,
+1 review, 1 dispute, 7 notifications, plus the catalog.
+
+```bash
+# Render Shell on the production service (MONGODB_URI is already set there):
+npm run seed:demo
+```
+
+No Render Shell on your plan (Shell needs a paid instance)? Run it locally
+instead — Atlas allows it as long as Network Access includes `0.0.0.0/0` (§3):
+
+```powershell
+# PowerShell, from C:\CareConnect\backend (explicit env beats your local .env):
+$env:MONGODB_URI = "mongodb+srv://<user>:<password>@cluster0.xxxxx.mongodb.net/careconnect?retryWrites=true&w=majority"
+npm run seed:demo
+$env:MONGODB_URI = ""
+```
+
+Safety check first (confirm you're pointing at the right database — the script
+wipes whatever `MONGODB_URI` points at):
+
+```powershell
+$env:MONGODB_URI = "mongodb+srv://<user>:<password>@cluster0.xxxxx.mongodb.net/careconnect?retryWrites=true&w=majority"
+node -e "const m=require('mongoose');(async()=>{await m.connect(process.env.MONGODB_URI);console.log('DB='+m.connection.name+' users='+(await m.connection.db.collection('users').countDocuments()));await m.disconnect();})()"
+$env:MONGODB_URI = ""
+```
+
+Keep the Atlas password to yourself: paste it only into your own terminal,
+clear the variable afterwards, and rotate the Atlas user password if it ever
+leaves your machine. Password rotation for seeded accounts works the same way:
+prefix each `npm run set-password -- …` command with the same `$env:MONGODB_URI`.
+
+Accepted trade-offs — review before every re-run:
+- **Wipe-first.** The script calls `dropDatabase()` before seeding. On a fresh
+  production DB this is harmless; re-running it later **deletes all real
+  customer data**. Treat re-runs as a full reset, never as maintenance.
+- **Trivial passwords.** Every seeded account uses `123456789`. Rotate them right
+  after seeding with `npm run set-password` (repeat per account, starting with
+  the admin):
+  ```bash
+  npm run set-password -- --email=admin1@gmail.com --password='<generated-12+-chars>'
+  ```
+  Minimum 8 characters (a warning prints under 12). The script refuses unknown
+  emails and never logs passwords.
+- **Relative dates.** Bookings/quotes use dates relative to seed day (e.g. an
+  "IN_PROGRESS right now" job), so the demo story drifts over time — re-seed
+  before important demos.
+- **Idempotency does not apply here.** Unlike `npm run seed`, the demo script
+  is wipe-then-create, so there is no safe "top-up" mode.
+
+Verify afterwards: log in as `admin1@gmail.com` → Admin → Users shows exactly
+7 accounts; Dashboard KPIs are non-zero; one request of each status exists.
 
 ## 7. Step 4 — Frontend on Vercel
 
@@ -189,6 +248,6 @@ Run through as each role, in this order:
 - [ ] `JWT_SECRET` ≥ 32 random chars, unique per environment.
 - [ ] `CLIENT_URLS` lists only your domains; `CLIENT_URL_SUFFIXES` only if previews are needed.
 - [ ] Atlas: strong DB password, `0.0.0.0/0` replaced with tighter access if possible, backups enabled.
-- [ ] Demo credentials (`123456789`) exist **only** in local/staging databases — never seeded to prod.
+- [ ] Seeded demo credentials (`123456789`) either rotated or accepted per §6a — they must never survive unnoticed on a live customer database.
 - [ ] First admin created via `create-admin`; no shared admin accounts.
 - [ ] `npm run lint` clean on both sides; backend suite green; frontend build clean.

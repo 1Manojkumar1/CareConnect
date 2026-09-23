@@ -255,7 +255,7 @@ export default function ProviderProfile() {
             </div>
             <Link
               to="/provider/availability"
-              className="inline-flex h-8 items-center justify-center rounded bg-teal-800 px-3 text-xs font-semibold text-white no-underline hover:bg-teal-900 hover:no-underline"
+              className="inline-flex h-8 items-center justify-center rounded bg-teal-800 px-3 text-xs font-semibold text-white no-underline hover:bg-teal-900 hover:text-white hover:no-underline"
             >
               Manage Schedule →
             </Link>

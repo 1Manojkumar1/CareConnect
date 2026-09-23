@@ -138,7 +138,7 @@ export default function OperationsQueue() {
                   <div className="flex gap-2">
                     <Link
                       to={`/bookings/${b._id}`}
-                      className="px-3 py-1.5 bg-brand-700 text-white text-xs font-medium rounded hover:bg-brand-800"
+                      className="px-3 py-1.5 bg-brand-700 text-white text-xs font-medium rounded hover:bg-brand-800 hover:text-white"
                     >
                       Assign Provider →
                     </Link>
@@ -180,7 +180,7 @@ export default function OperationsQueue() {
                     </Link>
                     <Link
                       to="/disputes"
-                      className="px-3 py-1.5 bg-red-700 text-white text-xs font-medium rounded hover:bg-red-800"
+                      className="px-3 py-1.5 bg-red-700 text-white text-xs font-medium rounded hover:bg-red-800 hover:text-white"
                     >
                       Open Disputes →
                     </Link>
@@ -220,7 +220,7 @@ export default function OperationsQueue() {
                   <div className="flex gap-2">
                     <Link
                       to={`/requests/${r._id}`}
-                      className="px-3 py-1.5 bg-brand-700 text-white text-xs font-medium rounded hover:bg-brand-800"
+                      className="px-3 py-1.5 bg-brand-700 text-white text-xs font-medium rounded hover:bg-brand-800 hover:text-white"
                     >
                       Review Request →
                     </Link>
