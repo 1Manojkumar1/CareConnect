@@ -42,10 +42,21 @@ const TRUST_SIGNALS = [
 
 export default function Home() {
   const token = useSelector((s) => s.auth.token);
+  const user = useSelector((s) => s.auth.user);
 
-  const primaryCTA = token
-    ? { to: '/requests/new', label: 'Request a service' }
-    : { to: '/register', label: 'Get started — it\'s free' };
+  // Role-aware primary action: the old version sent every logged-in role to
+  // /requests/new (CUSTOMER-only), landing providers/staff on Unauthorized.
+  const CTA_BY_ROLE = {
+    CUSTOMER: { to: '/requests/new', label: 'Request a service' },
+    PROVIDER: { to: '/provider/requests', label: 'Find work' },
+    OPERATIONS: { to: '/admin/operations', label: 'Open operations' },
+    SUPPORT: { to: '/disputes', label: 'Open support queue' },
+    ADMIN: { to: '/admin/stats', label: 'View platform stats' },
+  };
+
+  const primaryCTA = !token
+    ? { to: '/register', label: 'Get started — it\'s free' }
+    : (CTA_BY_ROLE[user?.role] || { to: '/dashboard', label: 'Go to dashboard' });
 
   return (
     <div className="space-y-14">
@@ -152,8 +163,8 @@ export default function Home() {
           <h2 id="services" className="text-[15px] font-semibold text-ink-muted uppercase tracking-wide">
             Popular services
           </h2>
-          <Link to={token ? '/requests/new' : '/register'} className="text-[13px]">
-            Request a service →
+          <Link to={primaryCTA.to} className="text-[13px]">
+            {primaryCTA.label} →
           </Link>
         </div>
         <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
