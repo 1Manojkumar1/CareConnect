@@ -1,0 +1,92 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ─── CareConnect global base — professional, restrained, precise ─────────── */
+
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-surface-muted text-ink font-sans text-[15px] leading-relaxed;
+    margin: 0;
+  }
+
+  /* Restrained heading scale — avoid heavyweight H1s on data pages */
+  h1 { @apply text-[1.6rem] font-semibold tracking-tight text-ink leading-tight; }
+  h2 { @apply text-lg font-semibold tracking-tight text-ink; }
+  h3 { @apply text-[15px] font-semibold text-ink; }
+  h4 { @apply text-sm font-semibold text-ink; }
+
+  a {
+    @apply text-brand-700 underline-offset-2;
+    transition: color 0.15s ease;
+  }
+  a:hover { @apply text-brand-800 underline; }
+
+  /* Accessible keyboard focus ring */
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-brand-600;
+  }
+
+  /* Improve button/input tap targets */
+  button, input, select, textarea {
+    font-family: inherit;
+  }
+
+  /* Better table baseline */
+  table { @apply w-full border-collapse; }
+  th { @apply text-left text-xs font-semibold uppercase tracking-wide text-ink-faint; }
+}
+
+@layer components {
+  /* ─── Layout ─────────────────────────────────────────────────────────────── */
+  .cc-container {
+    @apply mx-auto w-full max-w-shell px-4 sm:px-6 lg:px-8;
+  }
+
+  /* ─── Form helpers ───────────────────────────────────────────────────────── */
+  .cc-label {
+    @apply mb-1.5 block text-sm font-medium text-ink;
+  }
+
+  .cc-hint {
+    @apply mt-1 text-[13px] leading-snug text-ink-faint;
+  }
+
+  .cc-error-text {
+    @apply mt-1 text-[13px] leading-snug text-red-700;
+  }
+
+  /* ─── Divider ────────────────────────────────────────────────────────────── */
+  .cc-divider {
+    @apply border-t border-stone-200 my-5;
+  }
+
+  /* ─── Section title used in detail pages ─────────────────────────────────── */
+  .cc-section-title {
+    @apply text-xs font-semibold uppercase tracking-wide text-ink-faint mb-3;
+  }
+
+  /* ─── Stat value in dashboards / admin ─────────────────────────────────── */
+  .cc-stat-value {
+    @apply text-2xl font-semibold tracking-tight text-ink tabular-nums;
+  }
+
+  /* ─── Data row / list item ─────────────────────────────────────────────── */
+  .cc-data-row {
+    @apply flex items-start justify-between gap-4 border-b border-stone-100 py-3 last:border-0;
+  }
+
+  /* ─── Subtle interactive transition ────────────────────────────────────── */
+  .cc-transition {
+    @apply transition-all duration-150 ease-in-out;
+  }
+}

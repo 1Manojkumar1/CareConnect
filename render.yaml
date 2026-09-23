@@ -1,0 +1,38 @@
+# ─── CareConnect · Render Blueprint ─────────────────────────────────────────
+# Deploys the Express API as a Render Web Service. Apply via the Render
+# Dashboard → New → Blueprint, pointing at this repo (render.yaml at root).
+# Secrets (MONGODB_URI, JWT_SECRET) are set in the dashboard, never here.
+# Full walkthrough: docs/DEPLOYMENT.md
+#
+# NOTE: the frontend is deployed separately on Vercel (see frontend/vercel.json
+# and docs/DEPLOYMENT.md). MongoDB is provisioned separately on MongoDB Atlas.
+
+services:
+  - type: web
+    name: careconnect-api
+    runtime: node
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: node src/server.js
+    healthCheckPath: /api/v1/health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      # Render injects PORT automatically; the app reads process.env.PORT.
+      - key: MONGODB_URI
+        sync: false # <-- set in dashboard: MongoDB Atlas connection string
+      - key: JWT_SECRET
+        generateValue: true # 64-char random secret, generated once by Render
+      - key: JWT_EXPIRES_IN
+        value: 7d
+      - key: CLIENT_URLS
+        sync: false # <-- set in dashboard: https://<your-app>.vercel.app
+      # Uncomment after first deploy if you use Vercel preview deployments:
+      # - key: CLIENT_URL_SUFFIXES
+      #   value: .vercel.app
+      # Optional — AI classification falls back to heuristics without a key:
+      - key: AI_API_KEY
+        sync: false
+      - key: AI_MODEL
+        value: gpt-4o-mini
