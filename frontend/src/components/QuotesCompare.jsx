@@ -11,7 +11,7 @@ function durationLabel(min) {
   return m === 0 ? `${h} hr` : `${h} hr ${m} min`;
 }
 
-export default function QuotesCompare({ quotes, onAccept, onReject, working }) {
+export default function QuotesCompare({ quotes, onAccept, onReject, onBook, working }) {
   const [confirm, setConfirm] = useState(null); // { quote, action }
   if (!quotes || quotes.length === 0) {
     return (
@@ -66,6 +66,9 @@ export default function QuotesCompare({ quotes, onAccept, onReject, working }) {
               <button type="button" onClick={() => setConfirm({ quote: q, action: 'reject' })} className="text-[13px] font-medium text-red-700 hover:underline">Reject</button>
             </div>
           )}
+          {q.status === 'ACCEPTED' && onBook && (
+            <button type="button" onClick={() => onBook(q)} className="text-[13px] font-medium text-brand-700 hover:underline">Book now</button>
+          )}
         </td>
       </tr>
     );
@@ -107,7 +110,7 @@ export default function QuotesCompare({ quotes, onAccept, onReject, working }) {
         >
           <p className="text-sm text-ink-muted">
             {confirm.action === 'accept'
-              ? 'Accepting books this provider at the quoted price. Other pending quotes stay visible until scheduling.'
+              ? 'Accepting locks in this quote at the quoted price. You will pick a final time slot next to create the booking.'
               : 'The provider will be notified. This cannot be undone.'}
           </p>
         </Modal>

@@ -30,6 +30,11 @@ const assignProvider = asyncHandler(async (req, res) => {
   ok(res, data);
 });
 
+const rescheduleBooking = asyncHandler(async (req, res) => {
+  const data = await service.rescheduleBooking(req.user.id, req.params.id, req.body);
+  ok(res, data);
+});
+
 const addEvidence = asyncHandler(async (req, res) => {
   const data = await service.addEvidence(
     req.user.id,
@@ -64,6 +69,7 @@ module.exports = {
   createBooking,
   updateStatus,
   assignProvider,
+  rescheduleBooking,
   addEvidence,
   getBooking,
   listBookings,

@@ -86,7 +86,9 @@ Estimated first-deploy time: **45–75 minutes** (mostly Atlas + DNS).
 | `CLIENT_URL_SUFFIXES` | no | `.vercel.app` | `https`-only suffix match for preview deploys; exact origins always win |
 | `AI_API_KEY` | no | `sk-…` | Omit → heuristic classifier (no external dependency) |
 | `AI_MODEL` / `AI_BASE_URL` / `AI_TIMEOUT_MS` / `AI_CONFIDENCE_THRESHOLD` | no | see `backend/.env.example` | Tuning knobs, all have safe defaults |
-| `EMAIL_HOST/PORT/USER/PASSWORD` | no | — | Nodemailer; notifications persist in-app regardless |
+| `SMTP_HOST/PORT/USER/PASS/FROM/SECURE` | no | see `backend/.env.example` | Real email delivery (reset, verification, booking/invoice/ticket/dispute updates); without it, emails are logged and all flows still work |
+| `UPLOAD_DIR` / `UPLOAD_MAX_MB` | no | `uploads` / `10` | Local-disk file storage served at `/uploads/*`. **Ephemeral on Render free tier**: files vanish on redeploy/restart unless a persistent disk is attached — fine for the demo, not for production use |
+| `API_PUBLIC_URL` | no | `https://careconnect-api.onrender.com` | Base URL used to build absolute `/uploads/*` file links; defaults to `http://localhost:$PORT` |
 
 `render.yaml` is safe to commit: it contains **no secrets** (`sync: false` = dashboard-only, `generateValue` = Render-generated).
 
@@ -201,12 +203,13 @@ Verify afterwards: log in as `admin1@gmail.com` → Admin → Users shows exactl
 Run through as each role, in this order:
 
 - [ ] Health: `GET /api/v1/health` → 200 (also the Render health-check proof).
-- [ ] Register customer → create request → submit (AI classification fills in).
-- [ ] Register provider → complete profile → submit verification → **admin verifies** → provider sees the request in Incoming → submits quote.
-- [ ] Customer compares quotes → accepts → booking appears; advance lifecycle to CLOSED; invoice generated; review submitted.
-- [ ] Raise a dispute → ops reviews → resolves.
-- [ ] Admin: users, catalog, fee config, audit logs all load.
-- [ ] Negative checks: expired JWT rejected; cross-user resource access 404s; wrong-role route calls 403; unknown frontend origin gets no CORS headers.
+- [ ] Register customer → verify the verification email flow (link logged server-side without SMTP) → create request with a photo → submit (AI classification fills in).
+- [ ] Register provider → complete profile → upload verification document → submit verification → **admin verifies** → provider sees the request in Incoming → submits quote.
+- [ ] Customer compares quotes → accepts → picks a slot → booking created → reschedule it once → advance lifecycle to CLOSED → invoice generated → pay → review submitted.
+- [ ] Raise a dispute → message in-thread → ops/support moves through UNDER_REVIEW → resolves with refund amount.
+- [ ] Raise a support ticket → support assigns, replies, resolves; customer sees the resolution.
+- [ ] Admin: users, catalog, fee config, audit logs all load (revenue now nonzero with paid invoices; operations queue shows rows).
+- [ ] Negative checks: expired JWT rejected; cross-user resource access 404s; wrong-role route calls 403; unknown frontend origin gets no CORS headers; invoice generation as customer → 403; anonymous `/availability/check` → 401.
 - [ ] Vercel: hard-refresh a deep link (`/bookings/…`) → renders (rewrite check); open DevTools → no console errors.
 
 ## 10. Custom domains (optional, recommended for production)

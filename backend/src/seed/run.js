@@ -43,11 +43,13 @@ async function run() {
     console.log(`  Invoices:      ${demoSummary.invoices}`);
     console.log(`  Reviews:       ${demoSummary.reviews}`);
     console.log(`  Disputes:      ${demoSummary.disputes}`);
+    console.log(`  Tickets:       ${demoSummary.tickets || 0}`);
     console.log(`  Notifications: ${demoSummary.notifications}`);
     console.log(`  SystemConfig:  ${demoSummary.systemConfig ? 'created' : 'exists'}`);
     console.log('\n── Demo Accounts (password: 123456789) ─────');
     console.log('  admin1@gmail.com            ADMIN');
     console.log('  ops1@gmail.com              OPERATIONS');
+    console.log('  support1@gmail.com          SUPPORT');
     console.log('  user1@gmail.com             CUSTOMER');
     console.log('  user2@gmail.com             CUSTOMER');
     console.log('  provider1@gmail.com         PROVIDER');

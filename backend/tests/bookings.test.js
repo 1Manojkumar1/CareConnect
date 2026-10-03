@@ -149,6 +149,57 @@ describe('booking creation', () => {
       .send({ startAt: startAt(), endAt: endAt() });
     expect(res.status).toBe(401);
   });
+
+  test('failed booking leaves quote and request untouched (no partial update)', async () => {
+    const { cat, skill } = await seed();
+    const { customer, pro, quoteId } = await customerQuoteBooking(cat, skill);
+
+    // Occupy the window first
+    await request(app)
+      .post('/api/v1/bookings')
+      .set('Authorization', `Bearer ${customer.token}`)
+      .send({ quoteId, startAt: startAt(), endAt: endAt() })
+      .expect(201);
+
+    // Second PENDING quote on a fresh request from the same customer
+    const { ServiceRequest } = require('../src/models/ServiceRequest');
+    const { Quote } = require('../src/models/Quote');
+    const { ProviderProfile } = require('../src/models/ProviderProfile');
+    const freshReq = await ServiceRequest.create({
+      customerId: customer.user.id,
+      categoryId: cat._id,
+      description: 'Second tap dripping in the guest bathroom needs attention.',
+      urgency: 'LOW',
+      budget: { min: 40, max: 120 },
+      address: { label: 'Home', line1: '14 Maple Street', city: 'Austin', postalCode: '78701' },
+      preferredDate: new Date(Date.now() + 86400000),
+      timeWindow: 'MORNING',
+      requiredSkills: [],
+      status: 'OPEN',
+      history: [{ status: 'OPEN' }],
+    });
+    const profile = await ProviderProfile.findOne({ userId: pro.user.id });
+    const freshQuote = await Quote.create({
+      requestId: freshReq._id,
+      providerId: profile._id,
+      customerId: customer.user.id,
+      pricing: { labor: 60, materials: 0, tax: 0, discount: 0, total: 60 },
+      estimatedDurationMin: 60,
+      proposedDate: new Date(Date.now() + 86400000),
+      expiresAt: new Date(Date.now() + 7 * 86400000),
+      status: 'PENDING',
+    });
+
+    // Overlapping window -> 409, and nothing is mutated
+    const res = await request(app)
+      .post('/api/v1/bookings')
+      .set('Authorization', `Bearer ${customer.token}`)
+      .send({ quoteId: freshQuote._id.toString(), startAt: startAt(), endAt: endAt() });
+    expect(res.status).toBe(409);
+
+    expect((await Quote.findById(freshQuote._id)).status).toBe('PENDING');
+    expect((await ServiceRequest.findById(freshReq._id)).status).toBe('OPEN');
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -490,5 +541,101 @@ describe('evidence upload', () => {
 
     expect(res.status).toBe(400);
     expect(res.body.error.code).toBe('VALIDATION_ERROR');
+  });
+});
+
+describe('booking reschedule', () => {
+  test('customer can move a CONFIRMED booking to a free window', async () => {
+    const { cat, skill } = await seed();
+    const { customer, quoteId } = await customerQuoteBooking(cat, skill);
+    const created = await request(app)
+      .post('/api/v1/bookings')
+      .set('Authorization', `Bearer ${customer.token}`)
+      .send({ quoteId, startAt: startAt(), endAt: endAt() })
+      .expect(201);
+    const bookingId = created.body.data._id;
+
+    const newStart = new Date(Date.now() + 3 * 86400000).toISOString();
+    const newEnd = new Date(Date.now() + 3 * 86400000 + 3600000).toISOString();
+    const res = await request(app)
+      .patch(`/api/v1/bookings/${bookingId}/reschedule`)
+      .set('Authorization', `Bearer ${customer.token}`)
+      .send({ startAt: newStart, endAt: newEnd });
+
+    expect(res.status).toBe(200);
+    expect(new Date(res.body.data.startAt).toISOString()).toBe(newStart);
+    expect(res.body.data.history.at(-1).note).toMatch(/Rescheduled/);
+  });
+
+  test('reschedule into a conflicting window fails with 409', async () => {
+    const { cat, skill } = await seed();
+    const { customer, quoteId } = await customerQuoteBooking(cat, skill);
+    const first = await request(app)
+      .post('/api/v1/bookings')
+      .set('Authorization', `Bearer ${customer.token}`)
+      .send({ quoteId, startAt: startAt(), endAt: endAt() })
+      .expect(201);
+
+    // Second booking in a different window on the same provider
+    const otherStart = new Date(Date.now() + 5 * 86400000).toISOString();
+    const otherEnd = new Date(Date.now() + 5 * 86400000 + 3600000).toISOString();
+    await request(app)
+      .post('/api/v1/bookings')
+      .set('Authorization', `Bearer ${customer.token}`)
+      .send({ quoteId, startAt: otherStart, endAt: otherEnd })
+      .expect(201);
+
+    // Try to move the first booking onto the second booking's window
+    const res = await request(app)
+      .patch(`/api/v1/bookings/${first.body.data._id}/reschedule`)
+      .set('Authorization', `Bearer ${customer.token}`)
+      .send({ startAt: otherStart, endAt: otherEnd });
+    expect(res.status).toBe(409);
+  });
+
+  test('strangers, bad ranges, and terminal states are rejected', async () => {
+    const { cat, skill } = await seed();
+    const { customer, quoteId } = await customerQuoteBooking(cat, skill);
+    const created = await request(app)
+      .post('/api/v1/bookings')
+      .set('Authorization', `Bearer ${customer.token}`)
+      .send({ quoteId, startAt: startAt(), endAt: endAt() })
+      .expect(201);
+    const bookingId = created.body.data._id;
+
+    // Stranger
+    const stranger = await apiRegister(request, app, { role: 'CUSTOMER' });
+    await request(app)
+      .patch(`/api/v1/bookings/${bookingId}/reschedule`)
+      .set('Authorization', `Bearer ${stranger.token}`)
+      .send({ startAt: new Date(Date.now() + 3 * 86400000).toISOString(), endAt: new Date(Date.now() + 3 * 86400000 + 3600000).toISOString() })
+      .expect(404);
+
+    // End before start
+    const bad = await request(app)
+      .patch(`/api/v1/bookings/${bookingId}/reschedule`)
+      .set('Authorization', `Bearer ${customer.token}`)
+      .send({ startAt: new Date(Date.now() + 3 * 86400000).toISOString(), endAt: new Date(Date.now() + 2 * 86400000).toISOString() })
+      .expect(400);
+    expect(bad.body.error.code).toBe('INVALID_TIME_RANGE');
+
+    // Past start
+    await request(app)
+      .patch(`/api/v1/bookings/${bookingId}/reschedule`)
+      .set('Authorization', `Bearer ${customer.token}`)
+      .send({ startAt: new Date(Date.now() - 86400000).toISOString(), endAt: new Date(Date.now() - 86400000 + 3600000).toISOString() })
+      .expect(422);
+
+    // Terminal state
+    await request(app)
+      .patch(`/api/v1/bookings/${bookingId}/status`)
+      .set('Authorization', `Bearer ${customer.token}`)
+      .send({ toStatus: 'CANCELLED', reason: 'Changed my mind.' })
+      .expect(200);
+    await request(app)
+      .patch(`/api/v1/bookings/${bookingId}/reschedule`)
+      .set('Authorization', `Bearer ${customer.token}`)
+      .send({ startAt: new Date(Date.now() + 3 * 86400000).toISOString(), endAt: new Date(Date.now() + 3 * 86400000 + 3600000).toISOString() })
+      .expect(422);
   });
 });

@@ -15,16 +15,22 @@ const createDispute = [
 
 const updateDispute = [
   param('id').isMongoId(),
-  body('status').optional().isIn(['UNDER_REVIEW', 'RESOLVED', 'REJECTED']),
+  body('status').optional().isIn(['UNDER_REVIEW', 'WAITING_FOR_CUSTOMER', 'WAITING_FOR_PROVIDER', 'RESOLVED', 'REJECTED']),
   body('resolutionNote').optional().isString().trim().isLength({ max: 2000 }),
+  body('refundAmount').optional().isFloat({ min: 0 }).withMessage('Refund amount must be a non-negative number'),
   body('assignedTo').optional({ nullable: true }).isMongoId(),
   body('note').optional().isString().trim().isLength({ max: 2000 }),
 ];
 
+const addMessage = [
+  param('id').isMongoId(),
+  body('body').isString().trim().isLength({ min: 1, max: 2000 }).withMessage('Message must be 1–2000 chars'),
+];
+
 const listDisputes = [
-  query('status').optional().isIn(['OPEN', 'UNDER_REVIEW', 'RESOLVED', 'REJECTED']),
+  query('status').optional().isIn(['OPEN', 'UNDER_REVIEW', 'WAITING_FOR_CUSTOMER', 'WAITING_FOR_PROVIDER', 'RESOLVED', 'REJECTED']),
   query('page').optional().isInt({ min: 1 }),
   query('limit').optional().isInt({ min: 1, max: 100 }),
 ];
 
-module.exports = { createDispute, updateDispute, listDisputes };
+module.exports = { createDispute, updateDispute, addMessage, listDisputes };

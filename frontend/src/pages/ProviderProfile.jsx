@@ -12,8 +12,6 @@ import Alert from '../components/ui/Alert';
 import Modal from '../components/ui/Modal';
 import { LoadingBlock, ErrorBlock, EmptyState } from '../components/ui/States';
 
-const MIME_OPTIONS = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'];
-
 async function getProviderSetup() {
   const [cats, sks] = await Promise.all([fetchCategories(), fetchSkills()]);
   let profile = null;
@@ -62,7 +60,7 @@ export default function ProviderProfile() {
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState('');
   const [docModal, setDocModal] = useState(false);
-  const [docForm, setDocForm] = useState({ fileName: '', mimeType: 'application/pdf', size: '', storageKey: '' });
+  const [docForm, setDocForm] = useState({ file: null });
   const dispatch = useDispatch();
 
   function applyProfile(p) {
@@ -190,19 +188,17 @@ export default function ProviderProfile() {
 
   async function handleDocAdd(e) {
     e.preventDefault();
+    if (!docForm.file) return;
     try {
-      const res = await api.post('/providers/profile/me/documents', {
-        fileName: docForm.fileName,
-        mimeType: docForm.mimeType,
-        size: Number(docForm.size),
-        storageKey: docForm.storageKey,
-      });
+      const fd = new FormData();
+      fd.append('file', docForm.file);
+      const res = await api.post('/providers/profile/me/documents', fd);
       setProfile(res.data.data);
       setDocModal(false);
-      setDocForm({ fileName: '', mimeType: 'application/pdf', size: '', storageKey: '' });
-      dispatch(pushToast({ tone: 'success', message: 'Document recorded.' }));
+      setDocForm({ file: null });
+      dispatch(pushToast({ tone: 'success', message: 'Document uploaded.' }));
     } catch (err) {
-      dispatch(pushToast({ tone: 'danger', message: getApiErrorMessage(err, 'Could not record this document.') }));
+      dispatch(pushToast({ tone: 'danger', message: getApiErrorMessage(err, 'Could not upload this document.') }));
     }
   }
 
@@ -321,10 +317,10 @@ export default function ProviderProfile() {
             <section aria-label="Verification documents" className="rounded-lg border border-stone-200 bg-surface px-5 py-4 shadow-subtle">
               <div className="mb-3 flex items-center justify-between">
                 <h2 className="text-[15px]">Verification documents</h2>
-                <Button size="sm" tone="secondary" onClick={() => setDocModal(true)}>Record document</Button>
+                <Button size="sm" tone="secondary" onClick={() => setDocModal(true)}>Upload document</Button>
               </div>
               {(profile.documents || []).length === 0 ? (
-                <EmptyState title="No documents yet" description="Licenses, certifications, or insurance. Upload storage lands in a later phase — record metadata for now." />
+                <EmptyState title="No documents yet" description="Licenses, certifications, or insurance. Uploaded files are stored with your profile." />
               ) : (
                 <ul className="grid gap-2">
                   {profile.documents.map((d) => (
@@ -341,18 +337,20 @@ export default function ProviderProfile() {
       )}
 
       {docModal && (
-        <Modal title="Record verification document" description="PDF, JPEG, PNG, or WebP up to 25 MB." onClose={() => setDocModal(false)}>
+        <Modal title="Upload verification document" description="PDF, JPEG, PNG, or WebP up to 10 MB." onClose={() => setDocModal(false)}>
           <form onSubmit={handleDocAdd} className="grid gap-4">
-            <Input label="File name" required value={docForm.fileName} onChange={(e) => setDocForm((f) => ({ ...f, fileName: e.target.value }))} />
-            <div>
-              <label htmlFor="doc-mime" className="cc-label">File type</label>
-              <select id="doc-mime" value={docForm.mimeType} onChange={(e) => setDocForm((f) => ({ ...f, mimeType: e.target.value }))} className="h-10 w-full rounded border border-stone-300 bg-white px-3 text-sm">
-                {MIME_OPTIONS.map((m) => <option key={m} value={m}>{m}</option>)}
-              </select>
-            </div>
-            <Input label="Size (bytes)" type="number" min={1} max={26214400} required value={docForm.size} onChange={(e) => setDocForm((f) => ({ ...f, size: e.target.value }))} />
-            <Input label="Storage key" hint="Object-storage key from your upload step." required value={docForm.storageKey} onChange={(e) => setDocForm((f) => ({ ...f, storageKey: e.target.value }))} />
-            <div><Button type="submit">Record document</Button></div>
+            <input
+              aria-label="Choose document"
+              type="file"
+              required
+              accept="application/pdf,image/jpeg,image/png,image/webp"
+              onChange={(e) => setDocForm({ file: e.target.files?.[0] || null })}
+              className="text-sm text-ink"
+            />
+            {docForm.file && (
+              <p className="text-[13px] text-ink-muted">{docForm.file.name} · {Math.round(docForm.file.size / 1024)} KB</p>
+            )}
+            <div><Button type="submit" disabled={!docForm.file}>Upload document</Button></div>
           </form>
         </Modal>
       )}

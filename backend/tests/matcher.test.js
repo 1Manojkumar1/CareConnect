@@ -5,6 +5,7 @@ const { ServiceCategory } = require('../src/models/ServiceCategory');
 const { Skill } = require('../src/models/Skill');
 const { ServiceRequest } = require('../src/models/ServiceRequest');
 const { ProviderProfile } = require('../src/models/ProviderProfile');
+const { AvailabilitySlot } = require('../src/models/AvailabilitySlot');
 const { startDb, stopDb, clearDb, apiRegister } = require('./helpers');
 const { scoreProfile } = require('../src/modules/matcher/matcher.service');
 
@@ -20,7 +21,21 @@ beforeEach(clearDb);
 
 afterAll(async () => stopDb(mongo));
 
-const tomorrow = () => new Date(Date.now() + 86400000);
+// Next occurrence of a weekday (0=Sun..6=Sat), always strictly in the future,
+// so schedule-dependent tests never depend on the day the suite runs.
+function dateOnWeekday(targetDow) {
+  const d = new Date();
+  d.setDate(d.getDate() + (((targetDow - d.getDay() + 7) % 7) || 7));
+  return d;
+}
+
+function buildHours(openDays) {
+  return openDays.map((dayOfWeek) => ({
+    dayOfWeek,
+    isOpen: true,
+    ranges: [{ start: '08:00', end: '18:00' }],
+  }));
+}
 
 async function seed() {
   const plumbing = await ServiceCategory.create({ name: 'Plumbing', slug: 'plumbing' });
@@ -31,7 +46,7 @@ async function seed() {
   return { plumbing, leak, pipe, electrical, wiring };
 }
 
-async function makeProvider({ name, email, skillIds, catId, city = 'Austin', verified = true, active = true, accepting = true, ratingAvg = 0, ratingCount = 0, exp = 0, rate = 0 }) {
+async function makeProvider({ name, email, skillIds, catId, city = 'Austin', verified = true, active = true, accepting = true, ratingAvg = 0, ratingCount = 0, exp = 0, rate = 0, openDays = [0, 1, 2, 3, 4, 5, 6] }) {
   const user = await User.create({
     name, email, passwordHash: 'hashed', role: 'PROVIDER', status: active ? 'ACTIVE' : 'SUSPENDED',
   });
@@ -43,6 +58,7 @@ async function makeProvider({ name, email, skillIds, catId, city = 'Austin', ver
     serviceAreas: [{ city }],
     verificationStatus: verified ? 'VERIFIED' : 'PENDING',
     acceptingJobs: accepting,
+    workingHours: buildHours(openDays),
     ratingAvg,
     ratingCount,
     experienceYears: exp,
@@ -56,7 +72,7 @@ async function makeCustomer() {
   return reg;
 }
 
-async function makeRequest(customerId, catId, skillIds, city = 'Austin', status = 'OPEN') {
+async function makeRequest(customerId, catId, skillIds, city = 'Austin', status = 'OPEN', date = dateOnWeekday(3)) {
   return ServiceRequest.create({
     customerId,
     categoryId: catId,
@@ -64,7 +80,7 @@ async function makeRequest(customerId, catId, skillIds, city = 'Austin', status 
     urgency: 'MEDIUM',
     budget: { min: 50, max: 200 },
     address: { label: 'Home', line1: '1 Main St', city, postalCode: '78701' },
-    preferredDate: tomorrow(),
+    preferredDate: date,
     timeWindow: 'MORNING',
     requiredSkills: skillIds,
     status,
@@ -167,6 +183,59 @@ describe('ranking and scoring', () => {
       .set('Authorization', `Bearer ${token}`);
     expect(res.body.data.providers).toHaveLength(2);
     expect(res.body.data.meta.total).toBe(3);
+  });
+});
+
+describe('preferred-date availability', () => {
+  test('provider closed on the request weekday is excluded', async () => {
+    const { plumbing, leak } = await seed();
+    const { user, token } = await makeCustomer();
+    // Mon–Fri schedule only; request lands on a Sunday.
+    await makeProvider({
+      name: 'Weekday Pro', email: 'weekday@example.com',
+      skillIds: [leak._id], catId: plumbing._id, openDays: [1, 2, 3, 4, 5],
+    });
+    const sunday = dateOnWeekday(0);
+    const req = await makeRequest(user.id, plumbing._id, [leak._id], 'Austin', 'OPEN', sunday);
+    const res = await request(app)
+      .get(`/api/v1/service-requests/${req._id}/providers`)
+      .set('Authorization', `Bearer ${token}`);
+    expect(res.status).toBe(200);
+    expect(res.body.data.providers).toHaveLength(0);
+  });
+
+  test('provider fully blocked that day is excluded', async () => {
+    const { plumbing, leak } = await seed();
+    const { user, token } = await makeCustomer();
+    const { profile } = await makeProvider({
+      name: 'Busy Pro', email: 'busy@example.com', skillIds: [leak._id], catId: plumbing._id,
+    });
+    const wednesday = dateOnWeekday(3);
+    const dayStr = wednesday.toISOString().slice(0, 10);
+    await AvailabilitySlot.create({
+      providerId: profile._id,
+      startAt: new Date(`${dayStr}T00:00:00Z`),
+      endAt: new Date(`${dayStr}T23:59:59Z`),
+      kind: 'BLOCKED',
+      reason: 'Day off',
+    });
+    const req = await makeRequest(user.id, plumbing._id, [leak._id], 'Austin', 'OPEN', wednesday);
+    const res = await request(app)
+      .get(`/api/v1/service-requests/${req._id}/providers`)
+      .set('Authorization', `Bearer ${token}`);
+    expect(res.body.data.providers).toHaveLength(0);
+  });
+
+  test('available providers carry an availability reason', async () => {
+    const { plumbing, leak } = await seed();
+    const { user, token } = await makeCustomer();
+    await makeProvider({ name: 'Free Pro', email: 'free@example.com', skillIds: [leak._id], catId: plumbing._id });
+    const req = await makeRequest(user.id, plumbing._id, [leak._id]);
+    const res = await request(app)
+      .get(`/api/v1/service-requests/${req._id}/providers`)
+      .set('Authorization', `Bearer ${token}`);
+    expect(res.body.data.providers).toHaveLength(1);
+    expect(res.body.data.providers[0].matchReasons.join(' ')).toMatch(/Available \d{4}-\d{2}-\d{2}/);
   });
 });
 

@@ -9,6 +9,7 @@ const { requestId } = require('./middleware/requestId');
 const { mongoSanitize } = require('./middleware/sanitize');
 const { apiLimiter } = require('./middleware/rateLimiter');
 const { notFound, errorHandler } = require('./middleware/errorHandler');
+const { ensureUploadRoot, uploadRoot } = require('./middleware/upload');
 const v1Routes = require('./routes/v1');
 
 function createApp() {
@@ -52,6 +53,10 @@ function createApp() {
   app.get('/', (_req, res) => {
     res.json({ success: true, data: { service: 'careconnect-api', api: '/api/v1' } });
   });
+
+  // Locally stored uploads (request attachments, verification documents, job evidence).
+  ensureUploadRoot();
+  app.use('/uploads', express.static(uploadRoot()));
 
   app.use('/api/v1', apiLimiter, v1Routes);
 

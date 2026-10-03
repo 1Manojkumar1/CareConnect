@@ -103,7 +103,7 @@ export default function Invoices() {
           </p>
           <div className="mt-6">
             <Link to="/bookings">
-              <Button variant="secondary" size="sm">
+              <Button tone="secondary" size="sm">
                 View Bookings
               </Button>
             </Link>
@@ -134,7 +134,7 @@ export default function Invoices() {
                     <td className="py-3.5 px-4 font-mono font-medium text-neutral-900 dark:text-neutral-100">
                       <Link
                         to={`/invoices/${inv._id}`}
-                        className="text-primary-600 dark:text-primary-400 hover:underline"
+                        className="text-brand-700 hover:underline"
                       >
                         {inv.invoiceNumber}
                       </Link>
@@ -158,7 +158,7 @@ export default function Invoices() {
                     <td className="py-3.5 px-4 text-right">
                       <Link to={`/invoices/${inv._id}`}>
                         <Button
-                          variant={inv.status === 'ISSUED' && user?.role === 'CUSTOMER' ? 'primary' : 'outline'}
+                          tone={inv.status === 'ISSUED' && user?.role === 'CUSTOMER' ? 'primary' : 'secondary'}
                           size="sm"
                         >
                           {inv.status === 'ISSUED' && user?.role === 'CUSTOMER' ? 'Pay Now' : 'View'}

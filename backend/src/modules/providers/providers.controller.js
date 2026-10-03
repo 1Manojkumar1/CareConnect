@@ -6,6 +6,10 @@ const getOwnProfile = asyncHandler(async (req, res) => {
   ok(res, await service.getOwnProfile(req.user.id));
 });
 
+const getOwnAnalytics = asyncHandler(async (req, res) => {
+  ok(res, await service.getOwnAnalytics(req.user.id));
+});
+
 const createProfile = asyncHandler(async (req, res) => {
   ok(res, await service.createProfile(req.user.id, req.body), 201);
 });
@@ -54,6 +58,7 @@ const getPublicProfile = asyncHandler(async (req, res) => {
 
 module.exports = {
   getOwnProfile,
+  getOwnAnalytics,
   createProfile,
   updateOwnProfile,
   submitForVerification,

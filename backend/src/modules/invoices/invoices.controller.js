@@ -47,7 +47,10 @@ async function payInvoice(req, res, next) {
 
 async function generateInvoice(req, res, next) {
   try {
-    const data = await invoicesService.generateInvoiceForBooking(req.params.bookingId);
+    const data = await invoicesService.generateInvoiceForBooking(req.params.bookingId, {
+      userId: req.user.id,
+      role: req.user.role,
+    });
     res.status(201).json({ success: true, data });
   } catch (err) {
     next(err);

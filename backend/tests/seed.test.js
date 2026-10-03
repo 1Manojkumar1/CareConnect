@@ -75,7 +75,7 @@ describe('Demo seed', () => {
   test('seeds demo data successfully', async () => {
     summary = await seedDemo();
     expect(summary).toBeDefined();
-    expect(summary.users).toBe(7);
+    expect(summary.users).toBe(8);
     expect(summary.providers).toBe(3);
   });
 
@@ -86,6 +86,7 @@ describe('Demo seed', () => {
     expect(summary.invoices).toBeGreaterThanOrEqual(2);
     expect(summary.reviews).toBeGreaterThanOrEqual(1);
     expect(summary.disputes).toBeGreaterThanOrEqual(1);
+    expect(summary.tickets).toBeGreaterThanOrEqual(2);
     expect(summary.notifications).toBeGreaterThanOrEqual(5);
   });
 
@@ -98,6 +99,7 @@ describe('Demo seed', () => {
     // All entities exist — nothing new should be created
     expect(second.reviews).toBe(0);
     expect(second.disputes).toBe(0);
+    expect(second.tickets).toBe(0);
     expect(second.systemConfig).toBe(false);
   });
 });
@@ -105,10 +107,11 @@ describe('Demo seed', () => {
 // ── Data quality checks ────────────────────────────────────────────────────
 
 describe('Demo data quality', () => {
-  test('all 7 demo accounts exist with correct roles', async () => {
+  test('all 8 demo accounts exist with correct roles', async () => {
     const expected = [
       { email: 'admin1@gmail.com', role: 'ADMIN' },
       { email: 'ops1@gmail.com', role: 'OPERATIONS' },
+      { email: 'support1@gmail.com', role: 'SUPPORT' },
       { email: 'user1@gmail.com', role: 'CUSTOMER' },
       { email: 'user2@gmail.com', role: 'CUSTOMER' },
       { email: 'provider1@gmail.com', role: 'PROVIDER' },

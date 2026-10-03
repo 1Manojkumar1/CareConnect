@@ -213,7 +213,7 @@ export default function Providers() {
         </div>
 
         <div className="mt-4 flex items-center justify-end gap-2">
-          <Button type="button" variant="secondary" onClick={handleReset}>
+          <Button type="button" tone="secondary" onClick={handleReset}>
             Reset
           </Button>
           <Button type="submit">

@@ -3,8 +3,12 @@ const { User } = require('../../models/User');
 const { ServiceCategory } = require('../../models/ServiceCategory');
 const { Skill } = require('../../models/Skill');
 const { ProviderProfile, VERIFICATION_TRANSITIONS } = require('../../models/ProviderProfile');
+const { Booking } = require('../../models/Booking');
+const { Quote } = require('../../models/Quote');
+const { Invoice } = require('../../models/Invoice');
 const { ApiError } = require('../../utils/ApiError');
 const { recordAuditLog } = require('../../utils/auditLogger');
+const { toPublicFileUrl, deleteUploadedFile } = require('../../middleware/upload');
 
 const ALLOWED_DOC_MIMES = [
   'application/pdf',
@@ -44,6 +48,8 @@ function serializeOwn(profile) {
       fileName: d.fileName,
       mimeType: d.mimeType,
       size: d.size,
+      storageKey: d.storageKey,
+      fileUrl: toPublicFileUrl(d.storageKey),
       uploadedAt: d.uploadedAt,
     })),
     createdAt: profile.createdAt,
@@ -89,6 +95,50 @@ async function getOwnProfile(userId) {
   const profile = await populateRefs(ProviderProfile.findOne({ userId }));
   if (!profile) throw ApiError.notFound('PROFILE_NOT_FOUND', 'Provider profile not found.');
   return serializeOwn(profile);
+}
+
+/**
+ * Provider performance metrics (PRD §24): jobs, revenue, ratings,
+ * quote acceptance and completion rates.
+ */
+async function getOwnAnalytics(userId) {
+  const profile = await ProviderProfile.findOne({ userId });
+  if (!profile) throw ApiError.notFound('PROFILE_NOT_FOUND', 'Provider profile not found.');
+
+  const [bookings, quotes, invoices] = await Promise.all([
+    Booking.find({ providerId: profile._id }, 'status').lean(),
+    Quote.find({ providerId: profile._id }, 'status').lean(),
+    Invoice.find({ providerId: profile._id, status: 'PAID' }, 'total').lean(),
+  ]);
+
+  const doneStatuses = ['COMPLETED', 'CUSTOMER_CONFIRMED', 'CLOSED'];
+  const jobsCompleted = bookings.filter((b) => doneStatuses.includes(b.status)).length;
+  const jobsCancelled = bookings.filter((b) => b.status === 'CANCELLED').length;
+  const activeJobs = bookings.filter((b) =>
+    ['CONFIRMED', 'SCHEDULED', 'PROVIDER_ASSIGNED', 'ON_THE_WAY', 'ARRIVED', 'IN_PROGRESS'].includes(b.status)
+  ).length;
+
+  const quotesSubmitted = quotes.length;
+  const quotesAccepted = quotes.filter((q) => q.status === 'ACCEPTED').length;
+
+  const revenue = Math.round(invoices.reduce((sum, inv) => sum + (inv.total || 0), 0) * 100) / 100;
+
+  const decided = jobsCompleted + jobsCancelled;
+  return {
+    jobsCompleted,
+    jobsCancelled,
+    activeJobs,
+    totalJobs: bookings.length,
+    completionRate: decided > 0 ? Math.round((jobsCompleted / decided) * 1000) / 10 : 0,
+    quotesSubmitted,
+    quotesAccepted,
+    quoteAcceptanceRate: quotesSubmitted > 0 ? Math.round((quotesAccepted / quotesSubmitted) * 1000) / 10 : 0,
+    revenue,
+    paidInvoices: invoices.length,
+    ratingAvg: profile.ratingAvg || 0,
+    ratingCount: profile.ratingCount || 0,
+    jobsCompletedLifetime: profile.jobsCompleted || 0,
+  };
 }
 
 async function createProfile(userId, data) {
@@ -185,6 +235,7 @@ async function removeDocument(userId, docId) {
   if (!profile) throw ApiError.notFound('PROFILE_NOT_FOUND', 'Provider profile not found.');
   const doc = profile.documents.id(docId);
   if (!doc) throw ApiError.notFound('DOCUMENT_NOT_FOUND', 'Document not found.');
+  deleteUploadedFile(doc.storageKey);
   doc.deleteOne();
   await profile.save();
   return serializeOwn(await populateRefs(ProviderProfile.findById(profile._id)));
@@ -299,6 +350,7 @@ async function getPublicProfile(profileId) {
 
 module.exports = {
   getOwnProfile,
+  getOwnAnalytics,
   createProfile,
   updateOwnProfile,
   submitForVerification,

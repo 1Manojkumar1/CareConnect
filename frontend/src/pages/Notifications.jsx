@@ -119,7 +119,7 @@ export default function Notifications() {
           <h1 className="text-2xl font-bold text-neutral-900 dark:text-neutral-100 flex items-center gap-2">
             Notifications
             {unreadCount > 0 && (
-              <span className="text-xs px-2.5 py-0.5 rounded-full bg-primary-100 dark:bg-primary-950 text-primary-700 dark:text-primary-300 font-semibold">
+              <span className="text-xs px-2.5 py-0.5 rounded-full bg-brand-100 text-brand-800 font-semibold">
                 {unreadCount} new
               </span>
             )}
@@ -130,7 +130,7 @@ export default function Notifications() {
         </div>
 
         {unreadCount > 0 && (
-          <Button variant="outline" size="sm" onClick={handleMarkAllRead}>
+          <Button tone="secondary" size="sm" onClick={handleMarkAllRead}>
             Mark all as read
           </Button>
         )}
@@ -201,7 +201,7 @@ export default function Notifications() {
               className={`p-4 sm:p-5 rounded-xl border transition-all flex items-start gap-4 ${
                 n.read
                   ? 'bg-white dark:bg-neutral-900 border-neutral-200 dark:border-neutral-800 text-neutral-700 dark:text-neutral-300'
-                  : 'bg-primary-50/40 dark:bg-primary-950/20 border-primary-200 dark:border-primary-900/40 text-neutral-900 dark:text-neutral-100 shadow-sm'
+                  : 'bg-brand-50 border-brand-200 text-ink shadow-sm'
               }`}
             >
               <div className="flex-shrink-0">{getTypeIcon(n.type)}</div>
@@ -211,7 +211,7 @@ export default function Notifications() {
                   <h4 className="font-semibold text-sm text-neutral-900 dark:text-neutral-100 flex items-center gap-2">
                     {n.title}
                     {!n.read && (
-                      <span className="w-2 h-2 rounded-full bg-primary-600 dark:bg-primary-400 flex-shrink-0" />
+                      <span className="w-2 h-2 rounded-full bg-brand-600 flex-shrink-0" />
                     )}
                   </h4>
                   <span className="text-xs text-neutral-400 dark:text-neutral-500 flex-shrink-0">
@@ -229,7 +229,7 @@ export default function Notifications() {
                 <div className="mt-3 flex items-center gap-3">
                   {n.link && (
                     <Link to={n.link}>
-                      <Button variant="outline" size="sm">
+                      <Button tone="secondary" size="sm">
                         View Details &rarr;
                       </Button>
                     </Link>

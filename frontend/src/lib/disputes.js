@@ -19,3 +19,8 @@ export async function updateDispute(id, payload) {
   const { data } = await api.patch(`/disputes/${id}`, payload);
   return data.data;
 }
+
+export async function addDisputeMessage(id, payload) {
+  const { data } = await api.post(`/disputes/${id}/messages`, payload);
+  return data.data;
+}

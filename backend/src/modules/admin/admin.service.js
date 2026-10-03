@@ -5,7 +5,9 @@ const { ServiceRequest } = require('../../models/ServiceRequest');
 const { Invoice } = require('../../models/Invoice');
 const { Dispute } = require('../../models/Dispute');
 const { SystemConfig } = require('../../models/SystemConfig');
+const { Quote } = require('../../models/Quote');
 const { AuditLog } = require('../../models/AuditLog');
+const { recordAuditLog } = require('../../utils/auditLogger');
 const { ApiError } = require('../../utils/ApiError');
 
 /**
@@ -24,7 +26,7 @@ async function getPlatformStats() {
     ProviderProfile.find({}, 'verificationStatus acceptingJobs ratingAvg').lean(),
     Booking.find({}, 'status pricing').lean(),
     ServiceRequest.find({}, 'status urgency').lean(),
-    Invoice.find({}, 'status pricing').lean(),
+    Invoice.find({}, 'status total platformFee').lean(),
     Dispute.find({}, 'status reason').lean(),
   ]);
 
@@ -76,9 +78,11 @@ async function getPlatformStats() {
   let totalPlatformRevenue = 0;
   let pendingRevenue = 0;
   let paidInvoiceCount = 0;
+  // Invoice stores server-authoritative totals at top level
+  // (subtotal/tax/platformFee/total) — there is no `pricing` object.
   invoices.forEach((inv) => {
-    const total = inv.pricing?.total || 0;
-    const fee = inv.pricing?.fee || 0;
+    const total = inv.total || 0;
+    const fee = inv.platformFee || 0;
     if (inv.status === 'PAID') {
       totalGMV += total;
       totalPlatformRevenue += fee;
@@ -89,7 +93,7 @@ async function getPlatformStats() {
   });
 
   // Disputes breakdown
-  const disputesByStatus = { OPEN: 0, UNDER_REVIEW: 0, RESOLVED: 0, REJECTED: 0 };
+  const disputesByStatus = { OPEN: 0, UNDER_REVIEW: 0, WAITING_FOR_CUSTOMER: 0, WAITING_FOR_PROVIDER: 0, RESOLVED: 0, REJECTED: 0 };
   disputes.forEach((d) => {
     if (disputesByStatus[d.status] !== undefined) disputesByStatus[d.status]++;
   });
@@ -125,47 +129,64 @@ async function getPlatformStats() {
     },
     disputes: {
       total: disputes.length,
-      openCount: disputesByStatus.OPEN + disputesByStatus.UNDER_REVIEW,
+      openCount: disputesByStatus.OPEN + disputesByStatus.UNDER_REVIEW + disputesByStatus.WAITING_FOR_CUSTOMER + disputesByStatus.WAITING_FOR_PROVIDER,
       byStatus: disputesByStatus,
     },
   };
 }
 
 /**
- * Returns operational queues: unassigned bookings, urgent requests, and open disputes.
+ * Returns operational queues: unassigned bookings, unassigned (quoteless)
+ * requests, urgent requests, and open disputes.
+ *
+ * Note: Booking.providerId is required, so "unassigned" work is surfaced at
+ * the request level (OPEN requests with no quotes yet) rather than the
+ * booking level.
  */
 async function getOperationsQueue() {
-  const [unassignedBookings, disputedBookings, urgentRequests] = await Promise.all([
+  const [unassignedBookings, disputedBookings, openRequests, urgentRequests] = await Promise.all([
     Booking.find({
       status: { $in: ['CONFIRMED', 'SCHEDULED'] },
       $or: [{ providerId: { $exists: false } }, { providerId: null }],
     })
       .sort({ createdAt: 1 })
       .populate('customerId', 'name email phone')
-      .populate('requestId', 'title description urgency')
+      .populate('requestId', 'description urgency status')
       .lean(),
     Booking.find({ status: 'DISPUTED' })
       .sort({ updatedAt: -1 })
       .populate('customerId', 'name email phone')
       .populate('providerId')
       .lean(),
-    ServiceRequest.find({
-      status: { $in: ['OPEN', 'MATCHING'] },
-      urgency: { $in: ['EMERGENCY', 'SAME_DAY', 'HIGH'] },
-    })
+    ServiceRequest.find({ status: 'OPEN' })
+      .sort({ createdAt: 1 })
+      .populate('customerId', 'name email')
+      .populate('categoryId', 'name')
+      .lean(),
+    ServiceRequest.find({ status: 'OPEN', urgency: 'HIGH' })
       .sort({ createdAt: 1 })
       .populate('customerId', 'name email')
       .populate('categoryId', 'name')
       .lean(),
   ]);
 
+  // Unassigned = OPEN requests that have not received any live quote yet.
+  const quotedRequestIds = new Set(
+    (await Quote.find({ requestId: { $in: openRequests.map((r) => r._id) } }, 'requestId').lean()).map(
+      (q) => String(q.requestId)
+    )
+  );
+  const unassignedRequests = openRequests.filter((r) => !quotedRequestIds.has(String(r._id)));
+
   return {
     summary: {
       unassignedBookingsCount: unassignedBookings.length,
+      unassignedRequestsCount: unassignedRequests.length,
       disputedBookingsCount: disputedBookings.length,
       urgentRequestsCount: urgentRequests.length,
     },
     unassignedBookings,
+    unassignedRequests,
     disputedBookings,
     urgentRequests,
   };
@@ -185,12 +206,20 @@ async function getFeeConfig() {
 /**
  * Update system fee configuration.
  */
-async function updateFeeConfig(actorId, data) {
+async function updateFeeConfig(actorId, data, actorRole = 'ADMIN') {
   let config = await SystemConfig.findOne({ key: 'PLATFORM_CONFIG' });
   if (!config) {
     config = new SystemConfig({ key: 'PLATFORM_CONFIG' });
   }
 
+  const before = {
+    platformCommissionPercent: config.platformCommissionPercent,
+    minimumBookingFee: config.minimumBookingFee,
+    taxRatePercent: config.taxRatePercent,
+    currency: config.currency,
+    maintenanceMode: config.maintenanceMode,
+    supportEmail: config.supportEmail,
+  };
   if (data.platformCommissionPercent !== undefined) {
     config.platformCommissionPercent = data.platformCommissionPercent;
   }
@@ -212,13 +241,29 @@ async function updateFeeConfig(actorId, data) {
   config.updatedBy = actorId;
 
   await config.save();
+
+  recordAuditLog({
+    actor: { userId: actorId, role: actorRole },
+    action: 'FEE_CONFIG_UPDATED',
+    target: { model: 'SystemConfig', id: config._id, label: 'PLATFORM_CONFIG' },
+    before,
+    after: {
+      platformCommissionPercent: config.platformCommissionPercent,
+      minimumBookingFee: config.minimumBookingFee,
+      taxRatePercent: config.taxRatePercent,
+      currency: config.currency,
+      maintenanceMode: config.maintenanceMode,
+      supportEmail: config.supportEmail,
+    },
+  });
+
   return config;
 }
 
 /**
  * Perform bulk operations on bookings (e.g. reassign provider, bulk status update).
  */
-async function bulkActionBookings(actorId, { bookingIds, action, providerId, note }) {
+async function bulkActionBookings(actorId, { bookingIds, action, providerId, note }, actorRole = 'ADMIN') {
   if (!Array.isArray(bookingIds) || bookingIds.length === 0) {
     throw ApiError.badRequest('INVALID_PAYLOAD', 'bookingIds array is required.');
   }
@@ -230,23 +275,25 @@ async function bulkActionBookings(actorId, { bookingIds, action, providerId, not
     if (!booking) continue;
 
     if (action === 'ASSIGN_PROVIDER' && providerId) {
+      const fromStatus = booking.status;
       booking.providerId = providerId;
       booking.status = 'PROVIDER_ASSIGNED';
       booking.history.push({
         changedBy: actorId,
-        fromStatus: booking.status,
+        fromStatus,
         toStatus: 'PROVIDER_ASSIGNED',
         note: note || 'Provider assigned via Operations bulk action',
       });
       await booking.save();
       results.push({ id, status: 'SUCCESS', newStatus: 'PROVIDER_ASSIGNED' });
     } else if (action === 'CANCEL') {
+      const fromStatus = booking.status;
       booking.status = 'CANCELLED';
       booking.cancelledAt = new Date();
       booking.cancellationReason = note || 'Cancelled by Operations';
       booking.history.push({
         changedBy: actorId,
-        fromStatus: booking.status,
+        fromStatus,
         toStatus: 'CANCELLED',
         note: note || 'Cancelled via Operations bulk action',
       });
@@ -254,6 +301,13 @@ async function bulkActionBookings(actorId, { bookingIds, action, providerId, not
       results.push({ id, status: 'SUCCESS', newStatus: 'CANCELLED' });
     }
   }
+
+  recordAuditLog({
+    actor: { userId: actorId, role: actorRole },
+    action: 'BOOKINGS_BULK_ACTION',
+    target: { model: 'Booking', id: null, label: `${action} × ${results.length}` },
+    after: { action, processed: results.length, results },
+  });
 
   return { processed: results.length, results };
 }

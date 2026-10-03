@@ -192,7 +192,7 @@ export default function NewDispute() {
 
           <div className="flex justify-end gap-3 pt-4 border-t border-stone-200">
             <Link to="/disputes">
-              <Button type="button" variant="secondary" size="md">
+              <Button type="button" tone="secondary" size="md">
                 Cancel
               </Button>
             </Link>

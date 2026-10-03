@@ -5,6 +5,7 @@ import { pushToast } from '../store/uiSlice';
 import { getApiErrorMessage } from '../lib/api';
 import { getRequest, submitRequest, cancelRequest, classifyRequest, findProviders } from '../lib/requests';
 import { listQuotes, createQuote, updateQuote, acceptQuote, rejectQuote, withdrawQuote } from '../lib/quotes';
+import { createBooking } from '../lib/bookings';
 import PageHeader from '../components/ui/PageHeader';
 import Button from '../components/ui/Button';
 import Badge from '../components/ui/Badge';
@@ -14,6 +15,7 @@ import Alert from '../components/ui/Alert';
 import MatchedProviders from '../components/MatchedProviders';
 import QuotesCompare from '../components/QuotesCompare';
 import QuoteForm from '../components/QuoteForm';
+import BookQuoteForm from '../components/BookQuoteForm';
 import { LoadingBlock, ErrorBlock } from '../components/ui/States';
 
 function formatDate(value) {
@@ -35,6 +37,9 @@ export default function RequestDetail() {
   const [quoteServerError, setQuoteServerError] = useState('');
   const [quoteSaving, setQuoteSaving] = useState(false);
   const [deciding, setDeciding] = useState(false);
+  const [bookQuote, setBookQuote] = useState(null);
+  const [bookSaving, setBookSaving] = useState(false);
+  const [bookServerError, setBookServerError] = useState('');
   const dispatch = useDispatch();
   const navigate = useNavigate();
 
@@ -175,12 +180,29 @@ export default function RequestDetail() {
     setDeciding(true);
     try {
       await acceptQuote(quote.id);
-      dispatch(pushToast({ tone: 'success', message: 'Quote accepted.' }));
-      refreshQuotes();
+      dispatch(pushToast({ tone: 'success', message: 'Quote accepted. Pick a time slot to book.' }));
+      await refreshQuotes();
+      const accepted = (await listQuotes({ requestId: id })).items.find((q) => q.id === quote.id);
+      if (accepted) setBookQuote(accepted);
     } catch (err) {
       dispatch(pushToast({ tone: 'danger', message: getApiErrorMessage(err, 'Could not accept this quote.') }));
     } finally {
       setDeciding(false);
+    }
+  }
+
+  async function handleBookSubmit(payload) {
+    setBookSaving(true);
+    setBookServerError('');
+    try {
+      const booking = await createBooking(payload);
+      dispatch(pushToast({ tone: 'success', message: 'Booking confirmed.' }));
+      setBookQuote(null);
+      navigate(`/bookings/${booking._id || booking.id}`);
+    } catch (err) {
+      setBookServerError(getApiErrorMessage(err, 'Could not create this booking.'));
+    } finally {
+      setBookSaving(false);
     }
   }
 
@@ -360,7 +382,7 @@ export default function RequestDetail() {
                 title={`Quotes (${quotes.length})`}
                 description="Transparent pricing from verified providers. Accepting moves the request toward booking."
               >
-                <QuotesCompare quotes={quotes} onAccept={handleAccept} onReject={handleReject} working={deciding} />
+                <QuotesCompare quotes={quotes} onAccept={handleAccept} onReject={handleReject} onBook={setBookQuote} working={deciding} />
               </Card>
             )}
 
@@ -390,6 +412,21 @@ export default function RequestDetail() {
             onSubmit={handleQuoteSubmit}
             saving={quoteSaving}
             serverError={quoteServerError}
+          />
+        </Modal>
+      )}
+
+      {bookQuote && (
+        <Modal
+          title="Book this quote"
+          description={`${bookQuote.provider?.headline || 'Provider'} — $${Number(bookQuote.pricing?.total || 0).toFixed(2)} locked in.`}
+          onClose={() => setBookQuote(null)}
+        >
+          <BookQuoteForm
+            quote={bookQuote}
+            onSubmit={handleBookSubmit}
+            saving={bookSaving}
+            serverError={bookServerError}
           />
         </Modal>
       )}

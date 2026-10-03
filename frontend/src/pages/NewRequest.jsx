@@ -12,7 +12,6 @@ import Alert from '../components/ui/Alert';
 import { LoadingBlock, ErrorBlock } from '../components/ui/States';
 
 const STEPS = ['Service', 'Details', 'Schedule', 'Review'];
-const ATTACHMENT_MIMES = ['image/jpeg', 'image/png', 'image/webp', 'video/mp4', 'application/pdf'];
 
 async function getWizardData() {
   const [cats, me] = await Promise.all([
@@ -44,7 +43,6 @@ export default function NewRequest() {
     preferredDate: '', timeWindow: 'FLEXIBLE',
     attachments: [],
   });
-  const [attachDraft, setAttachDraft] = useState({ fileName: '', mimeType: 'image/jpeg', size: '', storageKey: '' });
   const [errors, setErrors] = useState({});
   const [serverError, setServerError] = useState('');
   const [saving, setSaving] = useState(false);
@@ -112,17 +110,11 @@ export default function NewRequest() {
 
   function addAttachment(e) {
     e.preventDefault();
-    if (!attachDraft.fileName.trim() || !attachDraft.size || !attachDraft.storageKey.trim()) return;
-    setForm((f) => ({
-      ...f,
-      attachments: [...f.attachments, {
-        fileName: attachDraft.fileName.trim(),
-        mimeType: attachDraft.mimeType,
-        size: Number(attachDraft.size),
-        storageKey: attachDraft.storageKey.trim(),
-      }],
-    }));
-    setAttachDraft({ fileName: '', mimeType: 'image/jpeg', size: '', storageKey: '' });
+    const files = Array.from(e.target?.files || []);
+    if (files.length === 0) return;
+    const staged = [...form.attachments, ...files].slice(0, 6);
+    setForm((f) => ({ ...f, attachments: staged }));
+    e.target.value = '';
   }
 
   function buildPayload(submit) {
@@ -301,23 +293,24 @@ export default function NewRequest() {
                 {form.attachments.length > 0 && (
                   <ul className="mb-2 grid gap-2">
                     {form.attachments.map((a, i) => (
-                      <li key={`${a.fileName}-${i}`} className="flex items-center justify-between rounded border border-stone-200 bg-white px-3 py-2 text-sm">
-                        <span>{a.fileName} <span className="text-ink-faint">· {Math.round(a.size / 1024)} KB</span></span>
+                      <li key={`${a.name}-${a.size}-${i}`} className="flex items-center justify-between rounded border border-stone-200 bg-white px-3 py-2 text-sm">
+                        <span>{a.name} <span className="text-ink-faint">· {Math.round(a.size / 1024)} KB</span></span>
                         <button type="button" onClick={() => setForm((f) => ({ ...f, attachments: f.attachments.filter((_, j) => j !== i) }))} className="text-[13px] font-medium text-red-700 hover:underline">Remove</button>
                       </li>
                     ))}
                   </ul>
                 )}
-                <div className="grid gap-2 rounded border border-dashed border-stone-300 p-3 sm:grid-cols-[1fr_130px_110px_1fr_auto]">
-                  <input aria-label="File name" placeholder="sink-photo.jpg" value={attachDraft.fileName} onChange={(e) => setAttachDraft((d) => ({ ...d, fileName: e.target.value }))} className="h-9 rounded border border-stone-300 px-2 text-sm" />
-                  <select aria-label="File type" value={attachDraft.mimeType} onChange={(e) => setAttachDraft((d) => ({ ...d, mimeType: e.target.value }))} className="h-9 rounded border border-stone-300 bg-white px-2 text-sm">
-                    {ATTACHMENT_MIMES.map((m) => <option key={m} value={m}>{m.split('/')[1]}</option>)}
-                  </select>
-                  <input aria-label="Size in bytes" type="number" min={1} placeholder="Bytes" value={attachDraft.size} onChange={(e) => setAttachDraft((d) => ({ ...d, size: e.target.value }))} className="h-9 rounded border border-stone-300 px-2 text-sm" />
-                  <input aria-label="Storage key" placeholder="Storage key" value={attachDraft.storageKey} onChange={(e) => setAttachDraft((d) => ({ ...d, storageKey: e.target.value }))} className="h-9 rounded border border-stone-300 px-2 text-sm" />
-                  <button type="button" onClick={addAttachment} className="h-9 rounded border border-stone-300 bg-white px-3 text-sm font-medium hover:bg-stone-50">Add</button>
+                <div className="grid gap-2 rounded border border-dashed border-stone-300 p-3">
+                  <input
+                    aria-label="Choose photos or documents"
+                    type="file"
+                    multiple
+                    accept="image/jpeg,image/png,image/webp,video/mp4,application/pdf"
+                    onChange={addAttachment}
+                    className="text-sm text-ink"
+                  />
                 </div>
-                <p className="cc-hint">Reference files already in your storage. Device upload arrives in a later phase.</p>
+                <p className="cc-hint">JPEG, PNG, WebP, MP4, or PDF — up to 6 files. They upload when you save the request.</p>
               </div>
             </section>
           )}

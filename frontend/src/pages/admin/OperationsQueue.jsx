@@ -28,18 +28,18 @@ export default function OperationsQueue() {
     load();
   }, []);
 
-  if (loading) return <LoadingBlock message="Loading operations queue..." />;
-  if (error) return <ErrorBlock title="Queue Error" message={error} onRetry={load} />;
+  if (loading) return <LoadingBlock title="Loading operations queue" />;
+  if (error) return <ErrorBlock title="Queue Error" description={error} onRetry={load} />;
   if (!queue) return null;
 
-  const { summary, unassignedBookings, disputedBookings, urgentRequests } = queue;
+  const { summary, unassignedBookings, unassignedRequests = [], disputedBookings, urgentRequests } = queue;
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto py-6 px-4 sm:px-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <PageHeader
           title="Operations Dispatch & Escalations"
-          description="Action items requiring intervention: unassigned confirmed bookings, disputed jobs, and urgent requests."
+          description="Action items requiring intervention: requests without quotes, disputed jobs, and urgent requests."
         />
         <div className="flex gap-2">
           <button
@@ -67,11 +67,11 @@ export default function OperationsQueue() {
               : 'text-ink-muted hover:bg-stone-100'
           }`}
         >
-          Unassigned Bookings
+          Unassigned Work
           <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
             activeTab === 'unassigned' ? 'bg-brand-900 text-brand-100' : 'bg-stone-200 text-ink'
           }`}>
-            {summary.unassignedBookingsCount}
+            {(summary.unassignedRequestsCount || 0) + summary.unassignedBookingsCount}
           </span>
         </button>
 
@@ -108,16 +108,39 @@ export default function OperationsQueue() {
         </button>
       </div>
 
-      {/* Tab: Unassigned Bookings */}
+      {/* Tab: Unassigned Work */}
       {activeTab === 'unassigned' && (
-        <Card title={`Unassigned Bookings (${unassignedBookings.length})`}>
-          {unassignedBookings.length === 0 ? (
+        <Card title={`Unassigned requests (${unassignedRequests.length})`}>
+          {unassignedRequests.length === 0 && unassignedBookings.length === 0 ? (
             <EmptyState
-              title="All bookings assigned"
-              description="There are no pending unassigned confirmed bookings at this time."
+              title="Nothing waiting for assignment"
+              description="Every open request has quotes and every confirmed booking has a provider."
             />
           ) : (
             <div className="divide-y divide-stone-200">
+              {unassignedRequests.map((r) => (
+                <div key={r._id} className="py-4 flex flex-wrap items-center justify-between gap-4">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold text-ink">{r.categoryId?.name || 'Service'} request</span>
+                      <Badge tone="warning">No quotes yet</Badge>
+                      {r.urgency === 'HIGH' && <Badge tone="danger">HIGH urgency</Badge>}
+                    </div>
+                    <p className="text-sm text-ink-muted mt-1">
+                      Customer: <span className="font-medium text-ink">{r.customerId?.name || 'Customer'}</span> ({r.customerId?.email})
+                    </p>
+                    <p className="text-xs text-ink-faint mt-0.5">
+                      Opened: {new Date(r.createdAt).toLocaleString()}
+                    </p>
+                  </div>
+                  <Link
+                    to={`/requests/${r._id}`}
+                    className="px-3 py-1.5 bg-brand-700 text-white text-xs font-medium rounded hover:bg-brand-800 hover:text-white"
+                  >
+                    Review request →
+                  </Link>
+                </div>
+              ))}
               {unassignedBookings.map((b) => (
                 <div key={b._id} className="py-4 flex flex-wrap items-center justify-between gap-4">
                   <div>

@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { getDispute, updateDispute } from '../lib/disputes';
+import { getDispute, updateDispute, addDisputeMessage } from '../lib/disputes';
 import { useSelector } from 'react-redux';
 
 const STATUS_COLORS = {
   OPEN: 'bg-amber-100 text-amber-800',
   UNDER_REVIEW: 'bg-blue-100 text-blue-800',
+  WAITING_FOR_CUSTOMER: 'bg-purple-100 text-purple-800',
+  WAITING_FOR_PROVIDER: 'bg-purple-100 text-purple-800',
   RESOLVED: 'bg-green-100 text-green-800',
   REJECTED: 'bg-neutral-100 text-neutral-600',
 };
@@ -64,9 +66,15 @@ export default function DisputeDetail() {
   // Staff action form
   const [actionStatus, setActionStatus] = useState('');
   const [resolutionNote, setResolutionNote] = useState('');
+  const [refundAmount, setRefundAmount] = useState('');
   const [actionNote, setActionNote] = useState('');
   const [saving, setSaving] = useState(false);
   const [saveErr, setSaveErr] = useState('');
+
+  // Conversation
+  const [reply, setReply] = useState('');
+  const [sending, setSending] = useState(false);
+  const [replyErr, setReplyErr] = useState('');
 
   useEffect(() => {
     setLoading(true);
@@ -79,7 +87,9 @@ export default function DisputeDetail() {
   const availableTransitions = dispute
     ? {
         OPEN: ['UNDER_REVIEW'],
-        UNDER_REVIEW: ['RESOLVED', 'REJECTED'],
+        UNDER_REVIEW: ['WAITING_FOR_CUSTOMER', 'WAITING_FOR_PROVIDER', 'RESOLVED', 'REJECTED'],
+        WAITING_FOR_CUSTOMER: ['UNDER_REVIEW', 'RESOLVED', 'REJECTED'],
+        WAITING_FOR_PROVIDER: ['UNDER_REVIEW', 'RESOLVED', 'REJECTED'],
         RESOLVED: [],
         REJECTED: [],
       }[dispute.status] || []
@@ -90,19 +100,45 @@ export default function DisputeDetail() {
     setSaving(true);
     setSaveErr('');
     try {
-      const updated = await updateDispute(id, {
+      const payload = {
         status: actionStatus || undefined,
         resolutionNote: resolutionNote || undefined,
         note: actionNote || undefined,
-      });
+      };
+      if (actionStatus === 'RESOLVED' && refundAmount !== '') {
+        const amount = Number(refundAmount);
+        if (!Number.isFinite(amount) || amount < 0) {
+          setSaveErr('Refund amount must be a non-negative number.');
+          setSaving(false);
+          return;
+        }
+        payload.refundAmount = amount;
+      }
+      const updated = await updateDispute(id, payload);
       setDispute(updated);
       setActionStatus('');
       setResolutionNote('');
+      setRefundAmount('');
       setActionNote('');
     } catch (e) {
       setSaveErr(e.response?.data?.error?.message || 'Failed to update dispute');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleReply = async () => {
+    if (!reply.trim()) return;
+    setSending(true);
+    setReplyErr('');
+    try {
+      const updated = await addDisputeMessage(id, { body: reply.trim() });
+      setDispute(updated);
+      setReply('');
+    } catch (e) {
+      setReplyErr(e.response?.data?.error?.message || 'Failed to send message');
+    } finally {
+      setSending(false);
     }
   };
 
@@ -170,7 +206,16 @@ export default function DisputeDetail() {
               {dispute.resolvedAt && (
                 <div className="flex gap-2">
                   <dt className="text-neutral-500 w-28 flex-shrink-0">Resolved</dt>
-                  <dd className="text-neutral-800">{new Date(dispute.resolvedAt).toLocaleString()}</dd>
+                  <dd className="text-neutral-800">
+                    {new Date(dispute.resolvedAt).toLocaleString()}
+                    {dispute.resolvedBy && ` by ${dispute.resolvedBy.name || 'staff'}`}
+                  </dd>
+                </div>
+              )}
+              {dispute.status === 'RESOLVED' && Number(dispute.refundAmount) > 0 && (
+                <div className="flex gap-2">
+                  <dt className="text-neutral-500 w-28 flex-shrink-0">Refund</dt>
+                  <dd className="text-neutral-800 font-medium">${Number(dispute.refundAmount).toFixed(2)}</dd>
                 </div>
               )}
             </dl>
@@ -197,6 +242,51 @@ export default function DisputeDetail() {
                   ))}
                 </ul>
               </div>
+            )}
+          </div>
+
+          {/* Messages */}
+          <div className="bg-white rounded-2xl border border-neutral-200 p-5 shadow-sm">
+            <h2 className="font-semibold text-neutral-800 mb-4">Messages ({dispute.messages?.length || 0})</h2>
+            {dispute.messages?.length > 0 ? (
+              <ul className="grid gap-3 mb-4">
+                {dispute.messages.map((m) => {
+                  const mine = String(m.sender?._id || m.sender) === String(user?.id);
+                  return (
+                    <li key={m._id} className={`max-w-[90%] rounded-lg px-3 py-2 text-sm ${mine ? 'ml-auto bg-brand-700 text-white' : 'bg-neutral-100 text-neutral-800'}`}>
+                      <p className={`mb-0.5 text-xs font-medium ${mine ? 'text-brand-100' : 'text-neutral-500'}`}>
+                        {m.sender?.name || 'User'} · {new Date(m.createdAt).toLocaleString()}
+                      </p>
+                      <p className="whitespace-pre-line">{m.body}</p>
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : (
+              <p className="text-sm text-neutral-400 mb-4">No messages yet.</p>
+            )}
+            {!['RESOLVED', 'REJECTED'].includes(dispute.status) ? (
+              <div>
+                <div className="flex gap-2">
+                  <input
+                    value={reply}
+                    onChange={(e) => setReply(e.target.value)}
+                    placeholder="Write a message…"
+                    maxLength={2000}
+                    className="flex-1 rounded-lg border border-neutral-300 px-3 py-2 text-sm"
+                  />
+                  <button
+                    onClick={handleReply}
+                    disabled={sending || !reply.trim()}
+                    className="px-4 py-2 bg-brand-600 text-white rounded-lg text-sm font-medium hover:bg-brand-700 hover:text-white disabled:opacity-50"
+                  >
+                    {sending ? 'Sending…' : 'Send'}
+                  </button>
+                </div>
+                {replyErr && <p className="text-xs text-red-600 mt-1">{replyErr}</p>}
+              </div>
+            ) : (
+              <p className="text-xs text-neutral-400">This dispute is closed and no longer accepts messages.</p>
             )}
           </div>
 
@@ -259,6 +349,21 @@ export default function DisputeDetail() {
                       onChange={(e) => setResolutionNote(e.target.value)}
                       placeholder="Describe the resolution..."
                       className="cc-input text-sm resize-none"
+                    />
+                  </div>
+                )}
+
+                {actionStatus === 'RESOLVED' && (
+                  <div>
+                    <label className="cc-label text-xs">Refund Amount (USD, optional)</label>
+                    <input
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      value={refundAmount}
+                      onChange={(e) => setRefundAmount(e.target.value)}
+                      placeholder="0.00"
+                      className="cc-input text-sm"
                     />
                   </div>
                 )}

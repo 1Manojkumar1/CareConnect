@@ -212,6 +212,31 @@ describe('Invoices API (Phase A)', () => {
     expect(repeatPay.body.error.code).toBe('INVOICE_ALREADY_PAID');
   });
 
+  it('restricts manual invoice generation to the assigned provider or staff', async () => {
+    const { cust, prov, bookingId } = await setupBookingFixture();
+
+    // Customer cannot mint invoices, even for their own booking
+    const custGen = await request(app)
+      .post(`/api/v1/invoices/generate/${bookingId}`)
+      .set('Authorization', `Bearer ${cust.token}`);
+    expect(custGen.status).toBe(403);
+
+    // Owning provider can generate early (before customer confirmation)
+    const provGen = await request(app)
+      .post(`/api/v1/invoices/generate/${bookingId}`)
+      .set('Authorization', `Bearer ${prov.token}`);
+    expect([200, 201]).toContain(provGen.status);
+    expect(provGen.body.data.status).toBe('ISSUED');
+    expect(provGen.body.data.customerId._id || provGen.body.data.customerId).toBeDefined();
+
+    // Unrelated provider cannot generate for someone else's booking
+    const other = await apiRegister(request, app, { email: 'stranger-prov@example.com', role: 'PROVIDER' });
+    const strangerGen = await request(app)
+      .post(`/api/v1/invoices/generate/${bookingId}`)
+      .set('Authorization', `Bearer ${other.token}`);
+    expect([403, 404]).toContain(strangerGen.status);
+  });
+
   it('enforces role-based isolation on invoice listings and views', async () => {
     const { cust, prov, bookingId } = await setupBookingFixture();
     await Booking.findByIdAndUpdate(bookingId, { status: 'COMPLETED' });

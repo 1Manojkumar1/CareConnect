@@ -12,6 +12,7 @@ router.use(authenticate);
 router.post('/', v.createDispute, validate, ctrl.createDispute);
 router.get('/', v.listDisputes, validate, ctrl.listDisputes);
 router.get('/:id', ctrl.getDispute);
+router.post('/:id/messages', v.addMessage, validate, ctrl.addMessage);
 
 // Staff: update dispute status / resolution
 router.patch(

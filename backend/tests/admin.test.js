@@ -1,6 +1,12 @@
 const request = require('supertest');
 const { createApp } = require('../src/app');
 const { User } = require('../src/models/User');
+const { ProviderProfile } = require('../src/models/ProviderProfile');
+const { ServiceCategory } = require('../src/models/ServiceCategory');
+const { ServiceRequest } = require('../src/models/ServiceRequest');
+const { Quote } = require('../src/models/Quote');
+const { Booking } = require('../src/models/Booking');
+const { Invoice } = require('../src/models/Invoice');
 const { startDb, stopDb, clearDb, apiRegister } = require('./helpers');
 
 let mongo;
@@ -81,8 +87,97 @@ describe('Admin & Operations — Platform Stats & Queues', () => {
     const data = res.body.data;
     expect(data.summary).toBeDefined();
     expect(data.unassignedBookings).toBeDefined();
+    expect(data.unassignedRequests).toBeDefined();
     expect(data.disputedBookings).toBeDefined();
     expect(data.urgentRequests).toBeDefined();
+  });
+
+  test('stats report real revenue from paid invoices', async () => {
+    const admin = await getRoleToken('ADMIN', 'admin-rev');
+    const cust = await apiRegister(request, app, { email: 'rev-cust@example.com' });
+    const provUser = await User.create({
+      name: 'Rev Provider', email: 'rev-prov@example.com', passwordHash: 'x', role: 'PROVIDER', status: 'ACTIVE',
+    });
+    const profile = await ProviderProfile.create({ userId: provUser._id, verificationStatus: 'VERIFIED' });
+    const booking = await Booking.create({
+      customerId: cust.user.id,
+      providerId: profile._id,
+      startAt: new Date(),
+      endAt: new Date(Date.now() + 3600000),
+      status: 'CUSTOMER_CONFIRMED',
+      pricing: { total: 200, currency: 'USD' },
+    });
+    await Invoice.create({
+      invoiceNumber: 'INV-TEST-REV-1',
+      bookingId: booking._id,
+      customerId: cust.user.id,
+      providerId: profile._id,
+      subtotal: 200,
+      tax: 17,
+      platformFee: 20,
+      total: 237,
+      status: 'PAID',
+    });
+
+    const res = await request(app)
+      .get('/api/v1/admin/stats')
+      .set('Authorization', `Bearer ${admin.token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.financials.paidInvoices).toBe(1);
+    expect(res.body.data.financials.totalGMV).toBe(237);
+    expect(res.body.data.financials.totalPlatformRevenue).toBe(20);
+  });
+
+  test('queue surfaces urgent and unassigned open requests', async () => {
+    const ops = await getRoleToken('OPERATIONS', 'ops-queue2');
+    const cust = await apiRegister(request, app, { email: 'queue-cust@example.com' });
+    const cat = await ServiceCategory.create({ name: 'Plumbing', slug: 'plumbing' });
+
+    const mkReq = (urgency, description) =>
+      ServiceRequest.create({
+        customerId: cust.user.id,
+        categoryId: cat._id,
+        description,
+        urgency,
+        address: { label: 'Home', line1: '1 Main St', city: 'Austin', postalCode: '78701' },
+        preferredDate: new Date(Date.now() + 86400000),
+        timeWindow: 'MORNING',
+        requiredSkills: [],
+        status: 'OPEN',
+        history: [{ status: 'OPEN' }],
+      });
+
+    // Urgent + unassigned
+    await mkReq('HIGH', 'Burst pipe flooding the kitchen needs immediate repair work.');
+    // Quoted (assigned) — must not appear in unassignedRequests
+    const quoted = await mkReq('MEDIUM', 'Slow bathroom drain that needs professional cleaning service.');
+    const provUser = await User.create({
+      name: 'Q Provider', email: 'q-prov@example.com', passwordHash: 'x', role: 'PROVIDER', status: 'ACTIVE',
+    });
+    const profile = await ProviderProfile.create({ userId: provUser._id, verificationStatus: 'VERIFIED' });
+    await Quote.create({
+      requestId: quoted._id,
+      providerId: profile._id,
+      customerId: cust.user.id,
+      pricing: { labor: 100, materials: 0, tax: 0, discount: 0, total: 100 },
+      estimatedDurationMin: 60,
+      proposedDate: new Date(Date.now() + 86400000),
+      expiresAt: new Date(Date.now() + 7 * 86400000),
+      status: 'PENDING',
+    });
+
+    const res = await request(app)
+      .get('/api/v1/admin/operations/queue')
+      .set('Authorization', `Bearer ${ops.token}`);
+
+    expect(res.status).toBe(200);
+    const data = res.body.data;
+    expect(data.summary.urgentRequestsCount).toBe(1);
+    expect(data.urgentRequests).toHaveLength(1);
+    expect(data.summary.unassignedRequestsCount).toBe(1);
+    expect(data.unassignedRequests).toHaveLength(1);
+    expect(String(data.unassignedRequests[0]._id)).not.toBe(String(quoted._id));
   });
 });
 

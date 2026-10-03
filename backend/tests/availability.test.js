@@ -217,6 +217,7 @@ describe('Phase 9 — Availability and Scheduling', () => {
       // Requested: 10:30 - 11:30 (overlaps 10:00-11:00)
       const res = await request(app)
         .post('/api/v1/availability/check')
+        .set('Authorization', `Bearer ${customerToken}`)
         .send({
           providerId: providerProfileId,
           startAt: '2026-10-05T10:30:00.000Z',
@@ -231,6 +232,7 @@ describe('Phase 9 — Availability and Scheduling', () => {
     it('detects completely contained booking (10:15 - 10:45 inside 10:00 - 11:00)', async () => {
       const res = await request(app)
         .post('/api/v1/availability/check')
+        .set('Authorization', `Bearer ${customerToken}`)
         .send({
           providerId: providerProfileId,
           startAt: '2026-10-05T10:15:00.000Z',
@@ -245,6 +247,7 @@ describe('Phase 9 — Availability and Scheduling', () => {
     it('detects enclosing booking (09:30 - 11:30 enclosing 10:00 - 11:00)', async () => {
       const res = await request(app)
         .post('/api/v1/availability/check')
+        .set('Authorization', `Bearer ${customerToken}`)
         .send({
           providerId: providerProfileId,
           startAt: '2026-10-05T09:30:00.000Z',
@@ -259,6 +262,7 @@ describe('Phase 9 — Availability and Scheduling', () => {
     it('permits adjacent booking before (09:00 - 10:00 touch boundary at 10:00) WITHOUT conflict', async () => {
       const res = await request(app)
         .post('/api/v1/availability/check')
+        .set('Authorization', `Bearer ${customerToken}`)
         .send({
           providerId: providerProfileId,
           startAt: '2026-10-05T09:00:00.000Z',
@@ -273,6 +277,7 @@ describe('Phase 9 — Availability and Scheduling', () => {
     it('permits adjacent booking after (11:00 - 12:00 touch boundary at 11:00) WITHOUT conflict', async () => {
       const res = await request(app)
         .post('/api/v1/availability/check')
+        .set('Authorization', `Bearer ${customerToken}`)
         .send({
           providerId: providerProfileId,
           startAt: '2026-10-05T11:00:00.000Z',
@@ -296,6 +301,7 @@ describe('Phase 9 — Availability and Scheduling', () => {
 
       const res = await request(app)
         .post('/api/v1/availability/check')
+        .set('Authorization', `Bearer ${customerToken}`)
         .send({
           providerId: providerProfileId,
           startAt: '2026-10-06T14:30:00.000Z',
@@ -312,6 +318,7 @@ describe('Phase 9 — Availability and Scheduling', () => {
       // Provider hours are 09:00 - 17:00 Mon-Fri. Request at 20:00 - 21:00
       const eveningRes = await request(app)
         .post('/api/v1/availability/check')
+        .set('Authorization', `Bearer ${customerToken}`)
         .send({
           providerId: providerProfileId,
           startAt: '2026-10-05T20:00:00.000Z',
@@ -325,6 +332,7 @@ describe('Phase 9 — Availability and Scheduling', () => {
       // Sunday request (closed day)
       const sundayRes = await request(app)
         .post('/api/v1/availability/check')
+        .set('Authorization', `Bearer ${customerToken}`)
         .send({
           providerId: providerProfileId,
           startAt: '2026-10-04T10:00:00.000Z',
@@ -342,6 +350,7 @@ describe('Phase 9 — Availability and Scheduling', () => {
 
       const res = await request(app)
         .post('/api/v1/availability/check')
+        .set('Authorization', `Bearer ${customerToken}`)
         .send({
           providerId: providerProfileId,
           startAt: '2026-10-05T13:00:00.000Z',
@@ -351,6 +360,17 @@ describe('Phase 9 — Availability and Scheduling', () => {
       expect(res.status).toBe(200);
       expect(res.body.data.available).toBe(false);
       expect(res.body.data.conflict.code).toBe('PROVIDER_NOT_ACCEPTING');
+    });
+
+    it('requires authentication for conflict checks', async () => {
+      const res = await request(app)
+        .post('/api/v1/availability/check')
+        .send({
+          providerId: providerProfileId,
+          startAt: '2026-10-05T13:00:00.000Z',
+          endAt: '2026-10-05T14:00:00.000Z',
+        });
+      expect(res.status).toBe(401);
     });
   });
 

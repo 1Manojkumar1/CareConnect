@@ -162,11 +162,12 @@ function PrimaryNav({ token, user }) {
           <NavLink to="/provider/availability" className={navClass}>Availability</NavLink>
         </>
       )}
-      {token && ['OPERATIONS', 'ADMIN'].includes(role) && (
+      {token && ['OPERATIONS', 'SUPPORT', 'ADMIN'].includes(role) && (
         <>
           <NavLink to="/admin/stats" className={navClass}>Stats</NavLink>
           <NavLink to="/admin/operations" className={navClass}>Operations</NavLink>
           <NavLink to="/admin/bookings" className={navClass}>Bookings</NavLink>
+          <NavLink to="/disputes" className={navClass}>Disputes</NavLink>
         </>
       )}
       {token && role === 'ADMIN' && (
@@ -176,6 +177,7 @@ function PrimaryNav({ token, user }) {
         </>
       )}
       {token && <NavLink to="/invoices" className={navClass}>Invoices</NavLink>}
+      {token && <NavLink to="/tickets" className={navClass}>Tickets</NavLink>}
     </>
   );
 }

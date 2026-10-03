@@ -4,7 +4,7 @@ import { useSelector } from 'react-redux';
 import { useDispatch } from 'react-redux';
 import { pushToast } from '../store/uiSlice';
 import { getApiErrorMessage } from '../lib/api';
-import { getBooking, updateBookingStatus, addEvidence } from '../lib/bookings';
+import { getBooking, updateBookingStatus, addEvidence, rescheduleBooking } from '../lib/bookings';
 import PageHeader from '../components/ui/PageHeader';
 import Badge from '../components/ui/Badge';
 import Card from '../components/ui/Card';
@@ -89,9 +89,12 @@ export default function BookingDetail() {
   const [actionLoading, setActionLoading] = useState('');
   const [cancelNote, setCancelNote] = useState('');
   const [showCancel, setShowCancel] = useState(false);
+  const [showReschedule, setShowReschedule] = useState(false);
+  const [reschedDate, setReschedDate] = useState('');
+  const [reschedTime, setReschedTime] = useState('10:00');
   const [showReview, setShowReview] = useState(false);
   const [reviewed, setReviewed] = useState(false);
-  const [evidenceForm, setEvidenceForm] = useState({ open: false, phase: 'BEFORE', fileUrl: '', note: '' });
+  const [evidenceForm, setEvidenceForm] = useState({ open: false, phase: 'BEFORE', fileUrl: '', file: null, note: '' });
 
   async function load() {
     setState('loading');
@@ -150,20 +153,43 @@ export default function BookingDetail() {
     }
   }
 
+  async function handleReschedule() {
+    if (!reschedDate || !reschedTime) {
+      dispatch(pushToast({ tone: 'danger', message: 'Choose a new date and start time.' }));
+      return;
+    }
+    const start = new Date(`${reschedDate}T${reschedTime}:00`);
+    const durationMs = Math.max(30, new Date(booking.endAt).getTime() - new Date(booking.startAt).getTime());
+    const end = new Date(start.getTime() + durationMs);
+    setActionLoading('reschedule');
+    try {
+      const updated = await rescheduleBooking(id, { startAt: start.toISOString(), endAt: end.toISOString() });
+      setBooking(updated);
+      setShowReschedule(false);
+      dispatch(pushToast({ tone: 'success', message: `Rescheduled to ${start.toLocaleString()}.` }));
+    } catch (err) {
+      dispatch(pushToast({ tone: 'danger', message: getApiErrorMessage(err, 'Could not reschedule this booking.') }));
+    } finally {
+      setActionLoading('');
+    }
+  }
+
   async function handleEvidence() {
-    if (!evidenceForm.fileUrl.trim()) {
-      dispatch(pushToast({ tone: 'danger', message: 'Please enter a file URL.' }));
+    if (!evidenceForm.file && !evidenceForm.fileUrl.trim()) {
+      dispatch(pushToast({ tone: 'danger', message: 'Choose a file or enter a file URL.' }));
       return;
     }
     setActionLoading('evidence');
     try {
-      const updated = await addEvidence(id, {
-        phase: evidenceForm.phase,
-        fileUrl: evidenceForm.fileUrl.trim(),
-        note: evidenceForm.note,
-      });
+      const updated = await addEvidence(id, evidenceForm.file
+        ? { phase: evidenceForm.phase, file: evidenceForm.file, note: evidenceForm.note }
+        : {
+            phase: evidenceForm.phase,
+            fileUrl: evidenceForm.fileUrl.trim(),
+            note: evidenceForm.note,
+          });
       setBooking(updated);
-      setEvidenceForm({ open: false, phase: 'BEFORE', fileUrl: '', note: '' });
+      setEvidenceForm({ open: false, phase: 'BEFORE', fileUrl: '', file: null, note: '' });
       dispatch(pushToast({ tone: 'success', message: 'Evidence uploaded.' }));
     } catch (err) {
       dispatch(pushToast({ tone: 'danger', message: getApiErrorMessage(err, 'Could not upload evidence.') }));
@@ -277,6 +303,18 @@ export default function BookingDetail() {
                     Cancel booking
                   </button>
                 )}
+                {role === 'CUSTOMER' && ['CONFIRMED', 'SCHEDULED'].includes(status) && !showReschedule && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setReschedDate(new Date(booking.startAt).toISOString().slice(0, 10));
+                      setShowReschedule(true);
+                    }}
+                    className="h-8 rounded border border-stone-300 bg-white px-3 text-sm font-medium text-ink hover:bg-stone-50"
+                  >
+                    Reschedule
+                  </button>
+                )}
               </div>
               {showCancel && (
                 <div className="mt-4 space-y-3 rounded border border-red-200 bg-red-50 p-4">
@@ -298,6 +336,41 @@ export default function BookingDetail() {
                       className="h-8 rounded border border-stone-300 bg-white px-3 text-sm text-ink hover:bg-stone-50"
                     >
                       Keep booking
+                    </button>
+                  </div>
+                </div>
+              )}
+              {showReschedule && (
+                <div className="mt-4 space-y-3 rounded border border-stone-300 bg-stone-50 p-4">
+                  <p className="text-sm font-medium text-ink">Move this booking to a new time?</p>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <input
+                      type="date"
+                      aria-label="New date"
+                      value={reschedDate}
+                      min={new Date().toISOString().slice(0, 10)}
+                      onChange={(e) => setReschedDate(e.target.value)}
+                      className="h-9 rounded border border-stone-300 bg-white px-3 text-sm"
+                    />
+                    <input
+                      type="time"
+                      aria-label="New start time"
+                      value={reschedTime}
+                      onChange={(e) => setReschedTime(e.target.value)}
+                      className="h-9 rounded border border-stone-300 bg-white px-3 text-sm"
+                    />
+                  </div>
+                  <p className="text-[13px] text-ink-muted">The provider's availability is re-checked before confirming.</p>
+                  <div className="flex gap-2">
+                    <Button size="sm" onClick={handleReschedule} disabled={!!actionLoading}>
+                      {actionLoading === 'reschedule' ? 'Moving…' : 'Confirm new time'}
+                    </Button>
+                    <button
+                      type="button"
+                      onClick={() => setShowReschedule(false)}
+                      className="h-8 rounded border border-stone-300 bg-white px-3 text-sm text-ink hover:bg-stone-50"
+                    >
+                      Keep current time
                     </button>
                   </div>
                 </div>
@@ -393,10 +466,16 @@ export default function BookingDetail() {
                       ))}
                     </div>
                     <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp,video/mp4,application/pdf"
+                      onChange={(e) => setEvidenceForm({ ...evidenceForm, file: e.target.files?.[0] || null, fileUrl: '' })}
+                      className="w-full text-sm text-ink"
+                    />
+                    <input
                       type="url"
                       value={evidenceForm.fileUrl}
-                      onChange={(e) => setEvidenceForm({ ...evidenceForm, fileUrl: e.target.value })}
-                      placeholder="File URL (e.g. https://...)"
+                      onChange={(e) => setEvidenceForm({ ...evidenceForm, fileUrl: e.target.value, file: null })}
+                      placeholder="…or paste a file URL (e.g. https://...)"
                       className="w-full rounded border border-stone-300 px-3 py-2 text-sm"
                     />
                     <input
@@ -412,7 +491,7 @@ export default function BookingDetail() {
                       </Button>
                       <button
                         type="button"
-                        onClick={() => setEvidenceForm({ open: false, phase: 'BEFORE', fileUrl: '', note: '' })}
+                        onClick={() => setEvidenceForm({ open: false, phase: 'BEFORE', fileUrl: '', file: null, note: '' })}
                         className="text-sm text-ink-muted hover:underline"
                       >
                         Cancel

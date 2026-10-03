@@ -31,6 +31,7 @@ async function clearDb() {
   const { Notification } = require('../src/models/Notification');
   const { Review } = require('../src/models/Review');
   const { Dispute } = require('../src/models/Dispute');
+  const { Ticket } = require('../src/models/Ticket');
   const { SystemConfig } = require('../src/models/SystemConfig');
   const { AuditLog } = require('../src/models/AuditLog');
   await Promise.all([
@@ -46,6 +47,7 @@ async function clearDb() {
     Notification.deleteMany({}),
     Review.deleteMany({}),
     Dispute.deleteMany({}),
+    Ticket.deleteMany({}),
     SystemConfig.deleteMany({}),
     AuditLog.deleteMany({}),
   ]);

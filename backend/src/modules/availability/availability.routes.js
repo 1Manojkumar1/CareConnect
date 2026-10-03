@@ -64,15 +64,19 @@ router.get(
 
 router.post(
   '/check',
+  authenticate,
   v.checkConflictValidation,
   validate,
   controller.checkConflict
 );
 
 // --- Booking Slot Reservation ---
+// CUSTOMER-only: the controller binds the booking to the caller's own
+// account, so other roles must not reach it.
 router.post(
   '/reserve',
   authenticate,
+  authorize('CUSTOMER'),
   v.reserveSlotValidation,
   validate,
   controller.reserveSlot

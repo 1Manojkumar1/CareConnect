@@ -4,9 +4,9 @@
 
 **Overall Status:** IN_PROGRESS
 
-**Current Phase:** Phase 24 — Final Integration Review
+**Current Phase:** Phase 25 — Final Capstone Readiness
 
-**Last Updated:** 2026-09-23
+**Last Updated:** 2026-09-27
 
 ---
 
@@ -38,8 +38,8 @@
 | 21    | Performance and Reliability            | COMPLETED   |
 | 22    | UI/UX Completion                       | COMPLETED   |
 | 23    | Seed Data and Demo Environment         | COMPLETED   |
-| 24    | Final Integration Review               | NOT_STARTED |
-| 25    | Final Capstone Readiness               | NOT_STARTED |
+| 24    | Final Integration Review               | COMPLETED   |
+| 25    | Final Capstone Readiness               | IN_PROGRESS |
 
 ## Status Values
 
@@ -56,7 +56,7 @@ Use only:
 
 ## Phase
 
-Phase 24 — Final Integration Review
+Phase 25 — Final Capstone Readiness
 
 ## Status
 
@@ -64,7 +64,28 @@ IN_PROGRESS
 
 ## Objective
 
-Conduct comprehensive end-to-end integration reviews across all user journeys (Customer, Provider, Operations, Admin) to ensure zero workflow gaps, seamless transitions, and rock-solid demo readiness.
+Ship the deployment (Vercel + Render + Atlas), deliver the judge demo, and close every remaining PRD gap found during the Phase 24 integration review.
+
+## Completed Work (Phase 24 close-out, 2026-09-27)
+
+* **Demo-blocking defects fixed (all verified by tests)**:
+  * Booking creation UI: accepting a quote now opens a slot picker (`BookQuoteForm`) that posts to the previously unused `POST /bookings` flow — the request → quote → booking lifecycle completes live in the UI.
+  * Admin revenue stats read `Invoice.total` / `Invoice.platformFee` (was reading a nonexistent `pricing` object, so GMV/revenue were always $0). Invoice generation now follows live `SystemConfig` tax/commission instead of hardcoded 8%/5%.
+  * Operations queue: `urgentRequests` used nonexistent `MATCHING`/`EMERGENCY`/`SAME_DAY` values (always empty); now surfaces real OPEN+HIGH requests plus a new `unassignedRequests` list (OPEN requests with zero quotes). `Unassigned bookings` tab rebuilt around it.
+  * Booking address copy mapped `line1/line2` → `street/unit` (was blank); request/booking history entries now use correct schema fields and real `fromStatus` values.
+  * Frontend sweep: 18× `Button variant=` → `tone=` (were rendering primary + invalid DOM attr), 9× `ErrorBlock/LoadingBlock message=` → `title/description` (error text was dropped), 9× undefined `primary-*` classes → `brand-*` (no CSS generated).
+* **Security hardening (Tier 2)**:
+  * `POST /invoices/generate/:bookingId` now requires PROVIDER/OPERATIONS/ADMIN at the route plus ownership check in the service (any authenticated user could previously mint invoices).
+  * `POST /availability/reserve` restricted to CUSTOMER; `POST /availability/check` now requires authentication; `RequireRole` guard no longer renders gated content while `/auth/me` resolves.
+* **Audit trail completed**: `BOOKING_CREATED/STATUS_CHANGE/PROVIDER_ASSIGNED/RESCHEDULED`, `DISPUTE_STATUS_CHANGE`, `TICKET_STATUS_CHANGE`, `INVOICE_GENERATED/PAID`, `REVIEW_MODERATED`, `FEE_CONFIG_UPDATED`, `BOOKINGS_BULK_ACTION` — the Admin audit log now shows the full demo story.
+* **Support ticket system (new, PRD §6.4/§12)**: `Ticket` model, `/api/v1/tickets` (raise/list/view/triage/message), staff assignment restricted to staff accounts, threaded messages, resolution notes, notifications + emails, full UI (`/tickets`, `/tickets/new`, `/tickets/:id`), seed data (1 in-progress + 1 resolved), 6 backend tests.
+* **Disputes completed (PRD §22)**: `WAITING_FOR_CUSTOMER`/`WAITING_FOR_PROVIDER` states, threaded messages, `refundAmount` (resolution-only, validated), `resolvedBy`, assignment notifications (`DISPUTE_RAISED` now actually emitted), UI resolve form with refund input.
+* **Real file uploads (PRD §19/§32)**: multer disk storage (`UPLOAD_DIR`, 10MB default, mime allowlists), dual-mode endpoints (multipart file OR legacy JSON metadata) for request attachments, provider documents, and job evidence; static serving under `/uploads`; delete-on-remove; 6 backend tests; real file pickers in NewRequest/ProviderProfile/BookingDetail.
+* **Email channel (PRD §23) + verification (PRD §7.1)**: nodemailer `sendMail` (SMTP when configured, console-logged otherwise, never throws); password-reset and verification emails; `POST /auth/verify-email` + `/auth/resend-verification`; `/verify-email` page; lifecycle emails (booking created/cancelled, invoice issued/paid, ticket assigned/resolved, dispute assigned/resolved).
+* **Provider analytics (PRD §24) + reschedule (PRD §9)**: `GET /providers/profile/me/analytics` (jobs, completion/acceptance rates, revenue, ratings) with Dashboard performance cards; `PATCH /bookings/:id/reschedule` (customer, CONFIRMED/SCHEDULED, conflict re-checked excluding own booking) with BookingDetail UI.
+* **Matcher availability**: ranking now excludes providers with no free slot on the request's preferred date (working hours + blocks + bookings via the availability engine); `Available <date> (N slots)` reasons; date-fragile tests made weekday-safe.
+* **Seed**: `support1@gmail.com` added (8 accounts), 2 tickets seeded, `reviewCount` → `ratingCount` fix, `[bD]` booking doc captured for ticket linkage; seed tests updated (17/17).
+* Full backend suite: **23 suites, 212 tests PASS** (was 20/173). Backend lint clean; frontend lint 0 errors (1 pre-existing warning); frontend build clean.
 
 ## Completed Work
 
@@ -511,6 +532,9 @@ Conduct comprehensive end-to-end integration reviews across all user journeys (C
 * Add frontend smoke test (router renders Home/Login) in Phase 19.
 * Stitch screen-level designs were never generated; all screens were built directly on the reviewed Tailwind design system instead (consistent, but the BUILD_PLAN Stitch workflow was bypassed — flag for capstone review if asked).
 * Demo passwords are intentionally trivial (`123456789`) for presentation login; never use this scheme outside the demo database.
+* Uploads use local disk (`UPLOAD_DIR`): files do not survive Render redeploys/restarts unless a persistent disk or object storage is attached — fine for the demo, must change before any production use.
+* `/logout` is stateless (client discards the JWT); there is no server-side token denylist. Role/status changes take effect on next login.
+* Quote expiry is lazy (computed on read, never written by a job); no background workers exist for reminders, no-shows, or payouts — acceptable per MVP scope, flag as future work.
 
 ---
 

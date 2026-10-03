@@ -193,11 +193,11 @@ export default function ProviderAvailability() {
     }
   }
 
-  if (state === 'loading') return <LoadingBlock message="Loading availability settings..." />;
+  if (state === 'loading') return <LoadingBlock title="Loading availability settings" />;
   if (state === 'error') {
     return (
       <ErrorBlock
-        message={error}
+        description={error}
         onRetry={() => {
           setState('loading');
           setReloadKey((k) => k + 1);
@@ -214,7 +214,6 @@ export default function ProviderAvailability() {
         breadcrumb={<span>Provider · Availability</span>}
         actions={
           <Button
-            variant="primary"
             onClick={handleSaveSchedule}
             disabled={saving}
           >
@@ -357,7 +356,7 @@ export default function ProviderAvailability() {
           >
             <div className="mb-4">
               <Button
-                variant="secondary"
+                tone="secondary"
                 size="sm"
                 onClick={() => setSlotModal(true)}
                 className="w-full"
@@ -458,10 +457,10 @@ export default function ProviderAvailability() {
             </div>
 
             <div className="flex justify-end gap-2 pt-2">
-              <Button type="button" variant="secondary" onClick={() => setSlotModal(false)}>
+              <Button type="button" tone="secondary" onClick={() => setSlotModal(false)}>
                 Cancel
               </Button>
-              <Button type="submit" variant="primary" disabled={slotSaving}>
+              <Button type="submit" disabled={slotSaving}>
                 {slotSaving ? 'Scheduling...' : 'Save Period'}
               </Button>
             </div>

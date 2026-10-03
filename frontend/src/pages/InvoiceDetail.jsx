@@ -69,7 +69,7 @@ export default function InvoiceDetail() {
           <p className="text-sm">{error}</p>
           <div className="mt-4">
             <Link to="/invoices">
-              <Button variant="secondary" size="sm">
+              <Button tone="secondary" size="sm">
                 Back to Invoices
               </Button>
             </Link>
@@ -95,12 +95,12 @@ export default function InvoiceDetail() {
         <div className="flex items-center gap-3">
           {invoice.bookingId && (
             <Link to={`/bookings/${invoice.bookingId._id || invoice.bookingId}`}>
-              <Button variant="outline" size="sm">
+              <Button tone="secondary" size="sm">
                 View Booking
               </Button>
             </Link>
           )}
-          <Button variant="secondary" size="sm" onClick={() => window.print()}>
+          <Button tone="secondary" size="sm" onClick={() => window.print()}>
             <svg
               className="w-4 h-4 mr-1.5"
               fill="none"
@@ -137,7 +137,7 @@ export default function InvoiceDetail() {
         <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-6 pb-6 border-b border-neutral-200 dark:border-neutral-800">
           <div>
             <div className="flex items-center gap-2">
-              <span className="text-2xl font-black tracking-tight text-primary-600 dark:text-primary-400">
+              <span className="text-2xl font-black tracking-tight text-brand-700">
                 CareConnect
               </span>
             </div>
@@ -268,7 +268,7 @@ export default function InvoiceDetail() {
             </div>
             <div className="pt-2 border-t border-neutral-200 dark:border-neutral-800 flex justify-between font-bold text-base text-neutral-900 dark:text-neutral-100">
               <span>Total Amount</span>
-              <span className="text-primary-600 dark:text-primary-400">
+              <span className="text-brand-700">
                 ${Number(invoice.total || 0).toFixed(2)}
               </span>
             </div>
@@ -321,7 +321,7 @@ export default function InvoiceDetail() {
 
       {/* Pay Online Form (Only for customer when ISSUED) */}
       {!isPaid && isCustomer && (
-        <div className="bg-white dark:bg-neutral-900 rounded-2xl border border-primary-200 dark:border-primary-900/50 shadow-sm p-6 sm:p-8 space-y-6 print:hidden">
+        <div className="bg-white rounded-2xl border border-brand-200 shadow-sm p-6 sm:p-8 space-y-6 print:hidden">
           <div>
             <h3 className="text-lg font-bold text-neutral-900 dark:text-neutral-100">
               Pay Invoice Online
@@ -345,7 +345,7 @@ export default function InvoiceDetail() {
               <select
                 value={cardBrand}
                 onChange={(e) => setCardBrand(e.target.value)}
-                className="w-full px-3 py-2 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 text-sm focus:ring-2 focus:ring-primary-500"
+                className="w-full px-3 py-2 rounded-lg border border-stone-300 bg-white text-ink text-sm focus:ring-2 focus:ring-brand-600"
               >
                 <option value="Visa">Visa</option>
                 <option value="Mastercard">Mastercard</option>
@@ -363,11 +363,11 @@ export default function InvoiceDetail() {
                 maxLength={4}
                 value={cardLast4}
                 onChange={(e) => setCardLast4(e.target.value)}
-                className="w-full px-3 py-2 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 text-sm font-mono focus:ring-2 focus:ring-primary-500"
+                className="w-full px-3 py-2 rounded-lg border border-stone-300 bg-white text-ink text-sm font-mono focus:ring-2 focus:ring-brand-600"
               />
             </div>
 
-            <Button type="submit" variant="primary" loading={paying} className="w-full mt-2">
+            <Button type="submit" loading={paying} className="w-full mt-2">
               Pay ${Number(invoice.total || 0).toFixed(2)} Now
             </Button>
           </form>

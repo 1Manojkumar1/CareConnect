@@ -89,9 +89,9 @@ export default function AuditLogs() {
 
       {/* Log Table */}
       {loading ? (
-        <LoadingBlock message="Retrieving audit records..." />
+        <LoadingBlock title="Retrieving audit records" />
       ) : error ? (
-        <ErrorBlock title="Audit Log Error" message={error} onRetry={() => load(page)} />
+        <ErrorBlock title="Audit Log Error" description={error} onRetry={() => load(page)} />
       ) : logs.length === 0 ? (
         <EmptyState
           title="No audit events found"
@@ -148,10 +148,10 @@ export default function AuditLogs() {
             <div className="mt-4 pt-3 border-t border-stone-200 flex items-center justify-between text-sm text-ink-muted">
               <span>Page {pagination.page} of {pagination.pages} · {pagination.total} records</span>
               <div className="flex gap-2">
-                <Button size="sm" variant="secondary" disabled={page <= 1} onClick={() => load(page - 1)}>
+                <Button size="sm" tone="secondary" disabled={page <= 1} onClick={() => load(page - 1)}>
                   Previous
                 </Button>
-                <Button size="sm" variant="secondary" disabled={page >= pagination.pages} onClick={() => load(page + 1)}>
+                <Button size="sm" tone="secondary" disabled={page >= pagination.pages} onClick={() => load(page + 1)}>
                   Next
                 </Button>
               </div>
@@ -202,7 +202,7 @@ export default function AuditLogs() {
             </div>
 
             <div className="pt-4 border-t border-stone-200 flex justify-end">
-              <Button size="sm" variant="secondary" onClick={() => setSelectedLog(null)}>
+              <Button size="sm" tone="secondary" onClick={() => setSelectedLog(null)}>
                 Close
               </Button>
             </div>

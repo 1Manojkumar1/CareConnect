@@ -41,6 +41,15 @@ const env = {
   clientOrigins,
   originSuffixes,
   aiApiKey: process.env.AI_API_KEY || '',
+  smtpHost: process.env.SMTP_HOST || '',
+  smtpPort: parseInt(process.env.SMTP_PORT || '587', 10),
+  smtpSecure: String(process.env.SMTP_SECURE || 'false').toLowerCase() === 'true',
+  smtpUser: process.env.SMTP_USER || '',
+  smtpPass: process.env.SMTP_PASS || '',
+  smtpFrom: process.env.SMTP_FROM || 'CareConnect <no-reply@careconnect.local>',
+  uploadDir: process.env.UPLOAD_DIR || 'uploads',
+  uploadMaxMb: parseInt(process.env.UPLOAD_MAX_MB || '10', 10),
+  publicBaseUrl: (process.env.API_PUBLIC_URL || `http://localhost:${parseInt(process.env.PORT || '5000', 10)}`).replace(/\/$/, ''),
 };
 
 function assertProdSecrets() {

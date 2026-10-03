@@ -29,4 +29,12 @@ const resetPasswordValidation = [
     .withMessage('Use at least 8 characters.'),
 ];
 
-module.exports = { registerValidation, loginValidation, forgotPasswordValidation, resetPasswordValidation };
+const verifyEmailValidation = [
+  body('token').trim().notEmpty().withMessage('Verification token is required.'),
+];
+
+const resendVerificationValidation = [
+  body('email').trim().notEmpty().withMessage('Email is required.').isEmail().withMessage('Enter a valid email.').normalizeEmail(),
+];
+
+module.exports = { registerValidation, loginValidation, forgotPasswordValidation, resetPasswordValidation, verifyEmailValidation, resendVerificationValidation };

@@ -18,12 +18,12 @@ const getFeeConfig = asyncHandler(async (req, res) => {
 });
 
 const updateFeeConfig = asyncHandler(async (req, res) => {
-  const config = await adminService.updateFeeConfig(req.user.id, req.body);
+  const config = await adminService.updateFeeConfig(req.user.id, req.body, req.user.role);
   ok(res, { config, message: 'Platform fee configuration updated successfully.' });
 });
 
 const bulkActionBookings = asyncHandler(async (req, res) => {
-  const result = await adminService.bulkActionBookings(req.user.id, req.body);
+  const result = await adminService.bulkActionBookings(req.user.id, req.body, req.user.role);
   ok(res, result);
 });
 

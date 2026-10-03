@@ -10,6 +10,7 @@ import Login from '../pages/Login';
 import Register from '../pages/Register';
 import ForgotPassword from '../pages/ForgotPassword';
 import ResetPassword from '../pages/ResetPassword';
+import VerifyEmail from '../pages/VerifyEmail';
 import { NotFound, Unauthorized } from '../pages/System';
 
 // ─── Lazy-load authenticated feature pages ────────────────────────────────────
@@ -37,6 +38,9 @@ const ProviderReviews    = lazy(() => import('../pages/ProviderReviews'));
 const Disputes           = lazy(() => import('../pages/Disputes'));
 const DisputeDetail      = lazy(() => import('../pages/DisputeDetail'));
 const NewDispute         = lazy(() => import('../pages/NewDispute'));
+const Tickets            = lazy(() => import('../pages/Tickets'));
+const TicketDetail       = lazy(() => import('../pages/TicketDetail'));
+const NewTicket          = lazy(() => import('../pages/NewTicket'));
 
 // ─── Admin pages (heaviest — always split) ────────────────────────────────────
 const CatalogAdmin       = lazy(() => import('../pages/admin/CatalogAdmin'));
@@ -72,6 +76,7 @@ export default function AppRoutes() {
         <Route path="register" element={<Register />} />
         <Route path="forgot-password" element={<ForgotPassword />} />
         <Route path="reset-password" element={<ResetPassword />} />
+        <Route path="verify-email" element={<VerifyEmail />} />
 
         {/* Authenticated — general */}
         <Route
@@ -233,7 +238,7 @@ export default function AppRoutes() {
         <Route
           path="admin/bookings"
           element={
-            <RequireRole roles={['OPERATIONS', 'ADMIN']}>
+            <RequireRole roles={['OPERATIONS', 'SUPPORT', 'ADMIN']}>
               <PageSuspense><BookingsAdmin /></PageSuspense>
             </RequireRole>
           }
@@ -241,7 +246,7 @@ export default function AppRoutes() {
         <Route
           path="admin/stats"
           element={
-            <RequireRole roles={['OPERATIONS', 'ADMIN']}>
+            <RequireRole roles={['OPERATIONS', 'SUPPORT', 'ADMIN']}>
               <PageSuspense><AdminStats /></PageSuspense>
             </RequireRole>
           }
@@ -249,7 +254,7 @@ export default function AppRoutes() {
         <Route
           path="admin/operations"
           element={
-            <RequireRole roles={['OPERATIONS', 'ADMIN']}>
+            <RequireRole roles={['OPERATIONS', 'SUPPORT', 'ADMIN']}>
               <PageSuspense><OperationsQueue /></PageSuspense>
             </RequireRole>
           }
@@ -298,6 +303,20 @@ export default function AppRoutes() {
         <Route
           path="disputes/:id"
           element={<RequireAuth><PageSuspense><DisputeDetail /></PageSuspense></RequireAuth>}
+        />
+
+        {/* Support tickets */}
+        <Route
+          path="tickets"
+          element={<RequireAuth><PageSuspense><Tickets /></PageSuspense></RequireAuth>}
+        />
+        <Route
+          path="tickets/new"
+          element={<RequireAuth><PageSuspense><NewTicket /></PageSuspense></RequireAuth>}
+        />
+        <Route
+          path="tickets/:id"
+          element={<RequireAuth><PageSuspense><TicketDetail /></PageSuspense></RequireAuth>}
         />
 
         <Route path="unauthorized" element={<Unauthorized />} />

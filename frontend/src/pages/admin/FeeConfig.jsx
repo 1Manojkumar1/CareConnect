@@ -66,8 +66,8 @@ export default function FeeConfig() {
     }
   };
 
-  if (loading) return <LoadingBlock message="Loading fee configuration..." />;
-  if (error && !config) return <ErrorBlock title="Config Error" message={error} onRetry={load} />;
+  if (loading) return <LoadingBlock title="Loading fee configuration" />;
+  if (error && !config) return <ErrorBlock title="Config Error" description={error} onRetry={load} />;
 
   return (
     <div className="max-w-3xl mx-auto py-6 px-4 sm:px-6 space-y-6">
@@ -211,7 +211,7 @@ export default function FeeConfig() {
 
           <div className="pt-6 border-t border-stone-200 flex justify-end gap-3">
             <Link to="/admin/stats">
-              <Button type="button" variant="secondary" size="md">
+              <Button type="button" tone="secondary" size="md">
                 Cancel
               </Button>
             </Link>

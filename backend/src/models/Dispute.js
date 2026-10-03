@@ -1,6 +1,13 @@
 const mongoose = require('mongoose');
 
-const DISPUTE_STATUSES = ['OPEN', 'UNDER_REVIEW', 'RESOLVED', 'REJECTED'];
+const DISPUTE_STATUSES = [
+  'OPEN',
+  'UNDER_REVIEW',
+  'WAITING_FOR_CUSTOMER',
+  'WAITING_FOR_PROVIDER',
+  'RESOLVED',
+  'REJECTED',
+];
 
 const DISPUTE_REASONS = [
   'SERVICE_NOT_COMPLETED',
@@ -23,6 +30,15 @@ const disputeEventSchema = new mongoose.Schema(
   { _id: true }
 );
 
+const disputeMessageSchema = new mongoose.Schema(
+  {
+    sender: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+    body: { type: String, trim: true, required: true, maxlength: 2000 },
+    createdAt: { type: Date, default: Date.now },
+  },
+  { _id: true }
+);
+
 const disputeSchema = new mongoose.Schema(
   {
     bookingId: { type: mongoose.Schema.Types.ObjectId, ref: 'Booking', required: true },
@@ -33,7 +49,10 @@ const disputeSchema = new mongoose.Schema(
     status: { type: String, enum: DISPUTE_STATUSES, default: 'OPEN' },
     assignedTo: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
     resolutionNote: { type: String, trim: true, maxlength: 2000, default: '' },
+    refundAmount: { type: Number, min: 0, default: 0 },
+    resolvedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
     resolvedAt: { type: Date, default: null },
+    messages: { type: [disputeMessageSchema], default: [] },
     timeline: { type: [disputeEventSchema], default: [] },
   },
   { timestamps: true }

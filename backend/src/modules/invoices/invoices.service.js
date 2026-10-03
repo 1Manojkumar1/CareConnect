@@ -1,7 +1,10 @@
 const { Invoice } = require('../../models/Invoice');
 const { Booking } = require('../../models/Booking');
 const { ProviderProfile } = require('../../models/ProviderProfile');
+const { SystemConfig } = require('../../models/SystemConfig');
 const { createNotification } = require('../notifications/notifications.service');
+const { sendUserEmail } = require('../../utils/mailer');
+const { recordAuditLog } = require('../../utils/auditLogger');
 const { ApiError } = require('../../utils/ApiError');
 
 function isStaff(role) {
@@ -23,13 +26,7 @@ async function generateInvoiceNumber() {
 /**
  * Generates an itemized invoice for a booking. Idempotent.
  */
-async function generateInvoiceForBooking(bookingId) {
-  const existing = await Invoice.findOne({ bookingId })
-    .populate('customerId', 'name email phone')
-    .populate('providerId', 'businessName phone ratingAvg')
-    .populate('bookingId');
-  if (existing) return existing;
-
+async function generateInvoiceForBooking(bookingId, actor = null) {
   const booking = await Booking.findById(bookingId)
     .populate('requestId')
     .populate('quoteId');
@@ -38,16 +35,42 @@ async function generateInvoiceForBooking(bookingId) {
     throw ApiError.notFound('BOOKING_NOT_FOUND', 'Booking not found for invoice generation.');
   }
 
+  // Manual generation is privileged: the assigned provider or staff only.
+  // Internal lifecycle calls (e.g. customer confirmation) pass no actor.
+  // Authorization runs before the idempotency check so an existing invoice
+  // is never leaked to a caller who may not see it.
+  if (actor) {
+    const staff = ['OPERATIONS', 'ADMIN'].includes(actor.role);
+    let ownsBooking = false;
+    if (actor.role === 'PROVIDER') {
+      const profile = await ProviderProfile.findOne({ userId: actor.userId });
+      ownsBooking = !!profile && String(booking.providerId) === String(profile._id);
+    }
+    if (!staff && !ownsBooking) {
+      throw ApiError.forbidden('FORBIDDEN', 'Only the assigned provider or staff can generate invoices.');
+    }
+  }
+
+  const existing = await Invoice.findOne({ bookingId })
+    .populate('customerId', 'name email phone')
+    .populate('providerId', 'businessName phone ratingAvg')
+    .populate('bookingId');
+  if (existing) return existing;
+  // Financials follow the live platform fee configuration (admin-managed
+  // pricing rules) — never hardcoded, never client-supplied.
+  const feeConfig = (await SystemConfig.findOne({ key: 'PLATFORM_CONFIG' }).lean()) || {};
+  const taxRate = Number(feeConfig.taxRatePercent ?? 8.25) / 100;
+  const commissionRate = Number(feeConfig.platformCommissionPercent ?? 10) / 100;
   const subtotal = Number(booking.pricing?.total || 0);
-  const tax = Math.round(subtotal * 0.08 * 100) / 100;
-  const platformFee = Math.round(subtotal * 0.05 * 100) / 100;
+  const tax = Math.round(subtotal * taxRate * 100) / 100;
+  const platformFee = Math.round(subtotal * commissionRate * 100) / 100;
   const total = Math.round((subtotal + tax + platformFee) * 100) / 100;
 
   const lineItems = [
     {
-      description: booking.requestId?.title
-        ? `Service: ${booking.requestId.title}`
-        : 'CareConnect Caregiving Service',
+      description: booking.requestId?.description
+        ? `Service: ${String(booking.requestId.description).slice(0, 120)}`
+        : 'CareConnect Home Service',
       amount: subtotal,
       quantity: 1,
       unitPrice: subtotal,
@@ -83,6 +106,21 @@ async function generateInvoiceForBooking(bookingId) {
     body: `Invoice ${invoiceNumber} for $${total.toFixed(2)} has been issued.`,
     link: `/invoices/${invoice._id}`,
     metadata: { invoiceId: invoice._id, bookingId: booking._id },
+  });
+  sendUserEmail(booking.customerId, {
+    subject: `CareConnect invoice ${invoiceNumber} — $${total.toFixed(2)}`,
+    text: `Invoice ${invoiceNumber} for $${total.toFixed(2)} has been issued and is due ${invoice.dueDate ? new Date(invoice.dueDate).toLocaleDateString() : 'soon'}.`,
+  });
+
+  recordAuditLog({
+    // Internal lifecycle calls (customer confirmation) carry no actor;
+    // attribute them to the booking's customer, who triggered generation.
+    actor: actor
+      ? { userId: actor.userId, role: actor.role }
+      : { userId: booking.customerId, role: 'CUSTOMER' },
+    action: 'INVOICE_GENERATED',
+    target: { model: 'Invoice', id: invoice._id, label: invoiceNumber },
+    after: { total, status: 'ISSUED', bookingId: String(booking._id) },
   });
 
   return Invoice.findById(invoice._id)
@@ -226,9 +264,9 @@ async function payInvoice(userId, role, invoiceId, paymentDetails = {}) {
     throw ApiError.unprocessable('INVOICE_VOID', 'Cannot pay a void invoice.');
   }
 
+  const prevStatus = invoice.status;
   invoice.status = 'PAID';
-  invoice.paidAt = new Date();
-  invoice.paymentMethod = {
+  invoice.paidAt = new Date();  invoice.paymentMethod = {
     type: paymentDetails.type || 'CARD',
     last4: paymentDetails.last4 || '4242',
     brand: paymentDetails.brand || 'Visa',
@@ -236,6 +274,14 @@ async function payInvoice(userId, role, invoiceId, paymentDetails = {}) {
   };
 
   await invoice.save();
+
+  recordAuditLog({
+    actor: { userId, role },
+    action: 'INVOICE_PAID',
+    target: { model: 'Invoice', id: invoice._id, label: invoice.invoiceNumber },
+    before: { status: prevStatus },
+    after: { status: 'PAID', total: invoice.total },
+  });
 
   // Notify customer
   await createNotification({
@@ -245,6 +291,10 @@ async function payInvoice(userId, role, invoiceId, paymentDetails = {}) {
     body: `Payment of $${invoice.total.toFixed(2)} for invoice ${invoice.invoiceNumber} was successful.`,
     link: `/invoices/${invoice._id}`,
     metadata: { invoiceId: invoice._id, transactionId: invoice.paymentMethod.transactionId },
+  });
+  sendUserEmail(invoice.customerId, {
+    subject: `CareConnect payment receipt — ${invoice.invoiceNumber}`,
+    text: `Payment of $${invoice.total.toFixed(2)} for invoice ${invoice.invoiceNumber} was successful.\nTransaction: ${invoice.paymentMethod.transactionId}`,
   });
 
   // Notify provider

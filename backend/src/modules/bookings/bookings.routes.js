@@ -2,11 +2,13 @@ const { Router } = require('express');
 const { authenticate } = require('../../middleware/auth');
 const { authorize } = require('../../middleware/authorize');
 const { validate } = require('../../middleware/validate');
+const { uploadFile, mergeUploadedFile, EVIDENCE_MIMES } = require('../../middleware/upload');
 const ctrl = require('./bookings.controller');
 const {
   createBookingValidation,
   updateStatusValidation,
   assignProviderValidation,
+  rescheduleValidation,
   addEvidenceValidation,
   listBookingsValidation,
 } = require('./bookings.validation');
@@ -50,6 +52,15 @@ router.patch(
   ctrl.updateStatus
 );
 
+// Reschedule (customer owns the booking; provider availability re-checked)
+router.patch(
+  '/:id/reschedule',
+  authorize('CUSTOMER'),
+  rescheduleValidation,
+  validate,
+  ctrl.rescheduleBooking
+);
+
 // Assign / reassign provider (operations, admin)
 router.patch(
   '/:id/assign',
@@ -63,6 +74,8 @@ router.patch(
 router.post(
   '/:id/evidence',
   authorize('PROVIDER', 'OPERATIONS', 'ADMIN'),
+  uploadFile('file', 'evidence', EVIDENCE_MIMES),
+  mergeUploadedFile,
   addEvidenceValidation,
   validate,
   ctrl.addEvidence

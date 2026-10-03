@@ -33,6 +33,8 @@ const userSchema = new mongoose.Schema(
     phone: { type: String, trim: true, maxlength: 24, default: '' },
     addresses: { type: [addressSchema], default: [] },
     emailVerifiedAt: { type: Date, default: null },
+    emailVerifyTokenHash: { type: String, default: null, select: false },
+    emailVerifyExpiresAt: { type: Date, default: null, select: false },
     passwordResetTokenHash: { type: String, default: null, select: false },
     passwordResetExpiresAt: { type: Date, default: null, select: false },
   },

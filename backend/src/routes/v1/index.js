@@ -12,6 +12,7 @@ const invoicesRoutes = require('../../modules/invoices/invoices.routes');
 const notificationsRoutes = require('../../modules/notifications/notifications.routes');
 const reviewsRoutes = require('../../modules/reviews/reviews.routes');
 const disputesRoutes = require('../../modules/disputes/disputes.routes');
+const ticketsRoutes = require('../../modules/tickets/tickets.routes');
 const adminRoutes = require('../../modules/admin/admin.routes');
 
 const router = Router();
@@ -30,6 +31,7 @@ router.use('/invoices', invoicesRoutes);
 router.use('/notifications', notificationsRoutes);
 router.use('/reviews', reviewsRoutes);
 router.use('/disputes', disputesRoutes);
+router.use('/tickets', ticketsRoutes);
 router.use('/admin', adminRoutes);
 
 module.exports = router;

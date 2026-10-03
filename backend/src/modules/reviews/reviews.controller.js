@@ -17,7 +17,7 @@ const listReviews = asyncHandler(async (req, res) => {
 });
 
 const moderateReview = asyncHandler(async (req, res) => {
-  const review = await reviewsService.moderateReview(req.params.id, req.body, req.user.id);
+  const review = await reviewsService.moderateReview(req.params.id, req.body, req.user.id, req.user.role);
   res.json({ success: true, data: review });
 });
 

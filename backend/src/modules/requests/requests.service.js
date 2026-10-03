@@ -3,6 +3,7 @@ const { ServiceCategory } = require('../../models/ServiceCategory');
 const { User } = require('../../models/User');
 const { ApiError } = require('../../utils/ApiError');
 const { classifyAsync } = require('../ai/ai.service');
+const { toPublicFileUrl, deleteUploadedFile } = require('../../middleware/upload');
 
 const ALLOWED_ATTACHMENT_MIMES = [
   'image/jpeg',
@@ -46,6 +47,8 @@ function serialize(req) {
       fileName: a.fileName,
       mimeType: a.mimeType,
       size: a.size,
+      storageKey: a.storageKey,
+      fileUrl: toPublicFileUrl(a.storageKey),
       uploadedAt: a.uploadedAt,
     })),
     aiClassification: req.aiClassification,
@@ -316,6 +319,7 @@ async function removeAttachment(requestId, customerId, attachmentId) {
   }
   const attachment = doc.attachments.id(attachmentId);
   if (!attachment) throw ApiError.notFound('ATTACHMENT_NOT_FOUND', 'Attachment not found.');
+  deleteUploadedFile(attachment.storageKey);
   attachment.deleteOne();
   await doc.save();
   return serialize(await populate(ServiceRequest.findById(doc._id)));

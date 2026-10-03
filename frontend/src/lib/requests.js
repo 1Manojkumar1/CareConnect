@@ -41,7 +41,14 @@ export async function findProviders(requestId, params = {}) {
 }
 
 export async function addRequestAttachment(id, attachment) {
-  const res = await api.post(`/service-requests/${id}/attachments`, attachment);
+  // Real device files are sent as multipart; plain objects keep the
+  // legacy JSON metadata path working.
+  let body = attachment;
+  if (typeof File !== 'undefined' && attachment instanceof File) {
+    body = new FormData();
+    body.append('file', attachment);
+  }
+  const res = await api.post(`/service-requests/${id}/attachments`, body);
   return res.data.data;
 }
 

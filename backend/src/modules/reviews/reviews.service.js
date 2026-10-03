@@ -1,6 +1,7 @@
 const { Review } = require('../../models/Review');
 const { Booking } = require('../../models/Booking');
 const { ProviderProfile } = require('../../models/ProviderProfile');
+const { recordAuditLog } = require('../../utils/auditLogger');
 const { ApiError } = require('../../utils/ApiError');
 
 const REVIEWABLE_STATUSES = ['CUSTOMER_CONFIRMED', 'CLOSED'];
@@ -80,7 +81,7 @@ async function listReviews({ status, providerId, page = 1, limit = 20 } = {}) {
 /**
  * SUPPORT/ADMIN: moderate a review (flag or re-publish).
  */
-async function moderateReview(reviewId, { status, moderationNote }, _actorId) {
+async function moderateReview(reviewId, { status, moderationNote }, actorId, actorRole = 'SUPPORT') {
   const review = await Review.findById(reviewId);
   if (!review) throw ApiError.notFound('NOT_FOUND', 'Review not found');
 
@@ -89,10 +90,19 @@ async function moderateReview(reviewId, { status, moderationNote }, _actorId) {
     throw ApiError.unprocessable('INVALID_STATE', `Status must be one of: ${allowed.join(', ')}`);
   }
 
+  const fromStatus = review.status;
   review.status = status;
   review.moderationNote = moderationNote || '';
   if (status === 'PUBLISHED') review.publishedAt = review.publishedAt || new Date();
   await review.save();
+
+  recordAuditLog({
+    actor: { userId: actorId, role: actorRole },
+    action: 'REVIEW_MODERATED',
+    target: { model: 'Review', id: review._id, label: `Review ${review._id}` },
+    before: { status: fromStatus },
+    after: { status },
+  });
 
   await _recalcProviderRating(review.providerId);
 

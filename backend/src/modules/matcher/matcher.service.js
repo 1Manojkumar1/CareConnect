@@ -2,6 +2,7 @@ const { ServiceRequest } = require('../../models/ServiceRequest');
 const { ProviderProfile } = require('../../models/ProviderProfile');
 const { Skill } = require('../../models/Skill');
 const { ApiError } = require('../../utils/ApiError');
+const { getAvailableSlots } = require('../availability/availability.service');
 
 const SCORE_WEIGHTS = { skills: 40, area: 20, rating: 10, experience: 10, price: 10, availability: 10 };
 const DEFAULT_LIMIT = 20;
@@ -84,11 +85,19 @@ function scoreProfile(profile, ctx) {
     score += 5;
   }
 
-  // --- Availability (10): accepting-jobs gate (deep slot checks land in Phase 9) ---
+  // --- Availability (10): accepting-jobs gate plus preferred-date check
+  // against the availability engine (working hours, blocked periods,
+  // existing bookings). Providers with no free slot that day are excluded —
+  // booking creation would reject them anyway.
   if (!profile.acceptingJobs) return null;
   score += SCORE_WEIGHTS.availability;
 
   return { score: Math.min(score, 100), reasons };
+}
+
+function preferredDateStr(value) {
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? null : d.toISOString().slice(0, 10);
 }
 
 function serializeMatch(profile, { score, reasons }) {
@@ -141,10 +150,22 @@ async function findProvidersForRequest(requestId, { userId, role, limit = DEFAUL
     .populate({ path: 'skillIds', select: 'name categoryId' });
 
   const ranked = [];
+  const dateStr = preferredDateStr(doc.preferredDate);
   for (const profile of candidates) {
     if (!profile.userId || profile.userId.status !== 'ACTIVE') continue;
     const scored = scoreProfile(profile, ctx);
-    if (scored) ranked.push(serializeMatch(profile, scored));
+    if (!scored) continue;
+    if (dateStr) {
+      try {
+        const { slots } = await getAvailableSlots(profile._id, { date: dateStr, durationMin: 60 });
+        if (!slots || slots.length === 0) continue;
+        scored.reasons.push(`Available ${dateStr} (${slots.length} open slot${slots.length === 1 ? '' : 's'})`);
+      } catch {
+        // Fail-open: a transient lookup error never hides an otherwise
+        // eligible provider; the booking-time conflict check still applies.
+      }
+    }
+    ranked.push(serializeMatch(profile, scored));
   }
   ranked.sort(
     (a, b) => b.score - a.score || b.ratingAvg - a.ratingAvg || b.experienceYears - a.experienceYears

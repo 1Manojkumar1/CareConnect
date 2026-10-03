@@ -167,6 +167,7 @@ export default function Dashboard() {
   const [requests, setRequests] = useState([]);
   const [invoices, setInvoices] = useState([]);
   const [providerProfile, setProviderProfile] = useState(null);
+  const [providerStats, setProviderStats] = useState(null);
   const [adminStats, setAdminStats] = useState(null);
 
   const [loading, setLoading] = useState(true);
@@ -189,13 +190,15 @@ export default function Dashboard() {
           setRequests(rData.items || (Array.isArray(rData) ? rData : []));
           setInvoices(iData.invoices || (Array.isArray(iData) ? iData : []));
         } else if (role === 'PROVIDER') {
-          const [bData, profData] = await Promise.all([
+          const [bData, profData, statsData] = await Promise.all([
             listBookings({ limit: 5 }).catch(() => ({ items: [] })),
             api.get('/providers/profile/me').then((r) => r.data.data).catch(() => null),
+            api.get('/providers/profile/me/analytics').then((r) => r.data.data).catch(() => null),
           ]);
           if (cancelled) return;
           setBookings(bData.items || (Array.isArray(bData) ? bData : []));
           setProviderProfile(profData);
+          setProviderStats(statsData);
         } else if (['OPERATIONS', 'ADMIN', 'SUPPORT'].includes(role)) {
           const [bData, sData] = await Promise.all([
             listBookings({ limit: 5 }).catch(() => ({ items: [] })),
@@ -311,8 +314,8 @@ export default function Dashboard() {
           />
           <MetricCard
             title="Jobs Completed"
-            value={providerProfile?.jobsCompleted ?? 0}
-            subtitle="Successfully delivered"
+            value={providerStats?.jobsCompleted ?? providerProfile?.jobsCompleted ?? 0}
+            subtitle={providerStats ? `${providerStats.completionRate}% completion rate` : 'Successfully delivered'}
             tone="emerald"
           />
           <MetricCard
@@ -325,6 +328,35 @@ export default function Dashboard() {
             title="Verification"
             value={providerProfile?.verificationStatus === 'VERIFIED' ? 'Verified Pro' : 'In Review'}
             subtitle={providerProfile?.timezone || 'Austin, TX'}
+            tone="sky"
+          />
+        </div>
+      )}
+
+      {role === 'PROVIDER' && providerStats && (
+        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+          <MetricCard
+            title="Quote Acceptance"
+            value={`${providerStats.quoteAcceptanceRate}%`}
+            subtitle={`${providerStats.quotesAccepted} of ${providerStats.quotesSubmitted} quotes won`}
+            tone="brand"
+          />
+          <MetricCard
+            title="Revenue Earned"
+            value={`$${Number(providerStats.revenue || 0).toLocaleString()}`}
+            subtitle={`${providerStats.paidInvoices} paid invoices`}
+            tone="emerald"
+          />
+          <MetricCard
+            title="Jobs Cancelled"
+            value={providerStats.jobsCancelled}
+            subtitle={`${providerStats.totalJobs} total jobs`}
+            tone="amber"
+          />
+          <MetricCard
+            title="Ratings"
+            value={providerStats.ratingAvg ? providerStats.ratingAvg.toFixed(1) : '—'}
+            subtitle={`${providerStats.ratingCount} reviews received`}
             tone="sky"
           />
         </div>

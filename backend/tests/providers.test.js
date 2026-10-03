@@ -2,6 +2,10 @@ const request = require('supertest');
 const { createApp } = require('../src/app');
 const { ServiceCategory } = require('../src/models/ServiceCategory');
 const { Skill } = require('../src/models/Skill');
+const { ProviderProfile } = require('../src/models/ProviderProfile');
+const { Booking } = require('../src/models/Booking');
+const { Quote } = require('../src/models/Quote');
+const { Invoice } = require('../src/models/Invoice');
 const { startDb, stopDb, clearDb, apiRegister, setRole } = require('./helpers');
 
 let mongo;
@@ -178,5 +182,100 @@ describe('provider profile lifecycle', () => {
       .send({ fileName: 'license.pdf', mimeType: 'application/pdf', size: 1024, storageKey: 'docs/license.pdf' });
     expect(good.status).toBe(201);
     expect(good.body.data.documents).toHaveLength(1);
+  });
+});
+
+describe('provider analytics', () => {
+  test('returns zeros for a fresh profile; customers forbidden', async () => {
+    const { token } = await providerToken('fresh@example.com');
+    await request(app)
+      .post('/api/v1/providers/profile')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ headline: 'New plumber' })
+      .expect(201);
+
+    const res = await request(app)
+      .get('/api/v1/providers/profile/me/analytics')
+      .set('Authorization', `Bearer ${token}`)
+      .expect(200);
+    expect(res.body.data.jobsCompleted).toBe(0);
+    expect(res.body.data.revenue).toBe(0);
+    expect(res.body.data.quoteAcceptanceRate).toBe(0);
+
+    const cust = await apiRegister(request, app, { role: 'CUSTOMER' });
+    await request(app)
+      .get('/api/v1/providers/profile/me/analytics')
+      .set('Authorization', `Bearer ${cust.token}`)
+      .expect(403);
+  });
+
+  test('aggregates jobs, quotes, and paid revenue', async () => {
+    const prov = await providerToken('busy@example.com');
+    const cust = await apiRegister(request, app, { email: 'a-cust@example.com', role: 'CUSTOMER' });
+    const { User } = require('../src/models/User');
+    const provUser = await User.findOne({ email: 'busy@example.com' });
+    const profile = await ProviderProfile.create({ userId: provUser._id, verificationStatus: 'VERIFIED', ratingAvg: 4.5, ratingCount: 10 });
+
+    const mkBooking = (status) => Booking.create({
+      customerId: cust.user.id,
+      providerId: profile._id,
+      startAt: new Date(),
+      endAt: new Date(Date.now() + 3600000),
+      status,
+    });
+    await mkBooking('CLOSED');
+    await mkBooking('COMPLETED');
+    await mkBooking('CANCELLED');
+    await mkBooking('CONFIRMED');
+
+    await Quote.create({
+      requestId: new (require('mongoose').Types.ObjectId)(),
+      providerId: profile._id,
+      customerId: cust.user.id,
+      pricing: { labor: 100, materials: 0, tax: 0, discount: 0, total: 100 },
+      estimatedDurationMin: 60,
+      proposedDate: new Date(),
+      expiresAt: new Date(Date.now() + 86400000),
+      status: 'ACCEPTED',
+    });
+    await Quote.create({
+      requestId: new (require('mongoose').Types.ObjectId)(),
+      providerId: profile._id,
+      customerId: cust.user.id,
+      pricing: { labor: 80, materials: 0, tax: 0, discount: 0, total: 80 },
+      estimatedDurationMin: 60,
+      proposedDate: new Date(),
+      expiresAt: new Date(Date.now() + 86400000),
+      status: 'REJECTED',
+    });
+
+    const paidBooking = await mkBooking('CLOSED');
+    await Invoice.create({
+      invoiceNumber: 'INV-ANALYTICS-1',
+      bookingId: paidBooking._id,
+      customerId: cust.user.id,
+      providerId: profile._id,
+      subtotal: 200,
+      tax: 17,
+      platformFee: 20,
+      total: 237,
+      status: 'PAID',
+    });
+
+    const res = await request(app)
+      .get('/api/v1/providers/profile/me/analytics')
+      .set('Authorization', `Bearer ${prov.token}`)
+      .expect(200);
+    const a = res.body.data;
+    expect(a.jobsCompleted).toBe(3);
+    expect(a.jobsCancelled).toBe(1);
+    expect(a.activeJobs).toBe(1);
+    expect(a.completionRate).toBe(75);
+    expect(a.quotesSubmitted).toBe(2);
+    expect(a.quoteAcceptanceRate).toBe(50);
+    expect(a.revenue).toBe(237);
+    expect(a.paidInvoices).toBe(1);
+    expect(a.ratingAvg).toBe(4.5);
+    expect(a.ratingCount).toBe(10);
   });
 });

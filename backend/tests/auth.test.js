@@ -192,3 +192,52 @@ describe('password reset', () => {
     expect(login.status).toBe(200);
   });
 });
+
+describe('email verification', () => {
+  test('verify with invalid token fails safely', async () => {
+    const res = await request(app)
+      .post('/api/v1/auth/verify-email')
+      .send({ token: 'bogus' });
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('INVALID_TOKEN');
+  });
+
+  test('verify with valid token marks email verified and is single-use', async () => {
+    const crypto = require('crypto');
+    const reg = await registerAs();
+    const token0 = reg.body.data.token;
+
+    const before = await request(app).get('/api/v1/auth/me').set('Authorization', `Bearer ${token0}`);
+    expect(before.body.data.user.emailVerified).toBe(false);
+
+    const token = crypto.randomBytes(32).toString('hex');
+    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+    await User.updateOne(
+      { email: customer.email },
+      { emailVerifyTokenHash: tokenHash, emailVerifyExpiresAt: new Date(Date.now() + 3600000) }
+    );
+
+    const res = await request(app).post('/api/v1/auth/verify-email').send({ token });
+    expect(res.status).toBe(200);
+    expect(res.body.data.verified).toBe(true);
+
+    const after = await request(app).get('/api/v1/auth/me').set('Authorization', `Bearer ${token0}`);
+    expect(after.body.data.user.emailVerified).toBe(true);
+
+    const reuse = await request(app).post('/api/v1/auth/verify-email').send({ token });
+    expect(reuse.status).toBe(400);
+  });
+
+  test('resend-verification always succeeds (no enumeration)', async () => {
+    await registerAs();
+    const existing = await request(app)
+      .post('/api/v1/auth/resend-verification')
+      .send({ email: customer.email });
+    const missing = await request(app)
+      .post('/api/v1/auth/resend-verification')
+      .send({ email: 'ghost@example.com' });
+    expect(existing.status).toBe(200);
+    expect(missing.status).toBe(200);
+    expect(existing.body).toEqual(missing.body);
+  });
+});

@@ -3,6 +3,7 @@ const { createApp } = require('../src/app');
 const { ServiceCategory } = require('../src/models/ServiceCategory');
 const { Skill } = require('../src/models/Skill');
 const { ProviderProfile } = require('../src/models/ProviderProfile');
+const { AuditLog } = require('../src/models/AuditLog');
 const { startDb, stopDb, clearDb, apiRegister, setRole } = require('./helpers');
 
 let mongo;
@@ -266,8 +267,7 @@ describe('Disputes API (Phase B)', () => {
     expect(listRes.body.data.disputes.length).toBe(1);
   });
 
-  it('non-staff cannot update a dispute', async () => {
-    const { cust, bookingId } = await setupBookingInProgress();
+  it('non-staff cannot update a dispute', async () => {    const { cust, bookingId } = await setupBookingInProgress();
 
     const createRes = await request(app)
       .post('/api/v1/disputes')
@@ -287,5 +287,135 @@ describe('Disputes API (Phase B)', () => {
       .send({ status: 'UNDER_REVIEW' });
 
     expect(res.status).toBe(403);
+  });
+
+  it('writes audit entries for booking lifecycle and dispute resolution', async () => {
+    const { cust, bookingId } = await setupBookingInProgress();
+    const staffToken = await getStaffToken();
+
+    // Booking creation + status transitions during setup are audited
+    const bookingEvents = await AuditLog.find({
+      action: { $in: ['BOOKING_CREATED', 'BOOKING_STATUS_CHANGE'] },
+    }).lean();
+    expect(bookingEvents.length).toBeGreaterThanOrEqual(2);
+    const created = bookingEvents.find((e) => e.action === 'BOOKING_CREATED');
+    expect(created.target.model).toBe('Booking');
+    expect(created.after.status).toBe('CONFIRMED');
+
+    // Resolve a dispute -> DISPUTE_STATUS_CHANGE with before/after
+    const createRes = await request(app)
+      .post('/api/v1/disputes')
+      .set('Authorization', `Bearer ${cust.token}`)
+      .send({
+        bookingId,
+        reason: 'POOR_QUALITY',
+        description: 'The repair failed again within a day and the area was left untidy overall.',
+      })
+      .expect(201);
+    const disputeId = createRes.body.data._id || createRes.body.data.id;
+
+    await request(app)
+      .patch(`/api/v1/disputes/${disputeId}`)
+      .set('Authorization', `Bearer ${staffToken}`)
+      .send({ status: 'UNDER_REVIEW' })
+      .expect(200);
+    await request(app)
+      .patch(`/api/v1/disputes/${disputeId}`)
+      .set('Authorization', `Bearer ${staffToken}`)
+      .send({ status: 'RESOLVED', resolutionNote: 'Provider will return to redo the work.' })
+      .expect(200);
+
+    const disputeEvents = await AuditLog.find({ action: 'DISPUTE_STATUS_CHANGE' }).lean();
+    expect(disputeEvents.length).toBe(2);
+    const resolved = disputeEvents.find((e) => e.after.status === 'RESOLVED');
+    expect(resolved.before.status).toBe('UNDER_REVIEW');
+    expect(resolved.actor.role).toBe('SUPPORT');
+  });
+
+  it('supports waiting states and records refund amount plus resolver', async () => {
+    const { cust, bookingId } = await setupBookingInProgress();
+    const staffToken = await getStaffToken();
+
+    const createRes = await request(app)
+      .post('/api/v1/disputes')
+      .set('Authorization', `Bearer ${cust.token}`)
+      .send({
+        bookingId,
+        reason: 'BILLING_ISSUE',
+        description: 'Charged for materials that were never installed during the service visit.',
+      })
+      .expect(201);
+    const disputeId = createRes.body.data._id || createRes.body.data.id;
+
+    // UNDER_REVIEW -> WAITING_FOR_CUSTOMER -> UNDER_REVIEW -> RESOLVED with refund
+    await request(app).patch(`/api/v1/disputes/${disputeId}`).set('Authorization', `Bearer ${staffToken}`).send({ status: 'UNDER_REVIEW' }).expect(200);
+    await request(app).patch(`/api/v1/disputes/${disputeId}`).set('Authorization', `Bearer ${staffToken}`).send({ status: 'WAITING_FOR_CUSTOMER', note: 'Need the original receipt' }).expect(200);
+
+    const mid = await request(app).get(`/api/v1/disputes/${disputeId}`).set('Authorization', `Bearer ${staffToken}`).expect(200);
+    expect(mid.body.data.status).toBe('WAITING_FOR_CUSTOMER');
+
+    await request(app).patch(`/api/v1/disputes/${disputeId}`).set('Authorization', `Bearer ${staffToken}`).send({ status: 'UNDER_REVIEW' }).expect(200);
+    const resolved = await request(app)
+      .patch(`/api/v1/disputes/${disputeId}`)
+      .set('Authorization', `Bearer ${staffToken}`)
+      .send({ status: 'RESOLVED', resolutionNote: 'Partial refund for unused materials.', refundAmount: 45.5 })
+      .expect(200);
+    expect(resolved.body.data.refundAmount).toBe(45.5);
+    expect(resolved.body.data.resolvedBy).toBeDefined();
+
+    const full = await request(app).get(`/api/v1/disputes/${disputeId}`).set('Authorization', `Bearer ${staffToken}`).expect(200);
+    expect(full.body.data.resolvedBy.role).toBe('SUPPORT');
+
+    // Refund without resolution is rejected
+    const createRes2 = await request(app)
+      .post('/api/v1/disputes')
+      .set('Authorization', `Bearer ${cust.token}`)
+      .send({
+        bookingId,
+        reason: 'OTHER',
+        description: 'Second concern about the same visit that needs a separate track for review.',
+      })
+      .expect(201);
+    const disputeId2 = createRes2.body.data._id || createRes2.body.data.id;
+    await request(app).patch(`/api/v1/disputes/${disputeId2}`).set('Authorization', `Bearer ${staffToken}`).send({ status: 'UNDER_REVIEW' }).expect(200);
+    const badRefund = await request(app)
+      .patch(`/api/v1/disputes/${disputeId2}`)
+      .set('Authorization', `Bearer ${staffToken}`)
+      .send({ refundAmount: 10 });
+    expect(badRefund.status).toBe(422);
+
+    // Negative refunds are rejected by validation
+    const negRefund = await request(app)
+      .patch(`/api/v1/disputes/${disputeId2}`)
+      .set('Authorization', `Bearer ${staffToken}`)
+      .send({ status: 'RESOLVED', refundAmount: -5 });
+    expect(negRefund.status).toBe(400);
+  });
+
+  it('raiser and staff can message an open dispute; closed disputes reject messages', async () => {
+    const { cust, bookingId } = await setupBookingInProgress();
+    const staffToken = await getStaffToken();
+    const stranger = await apiRegister(request, app, { email: `msg-str-${Date.now()}@ex.com`, role: 'CUSTOMER' });
+
+    const createRes = await request(app)
+      .post('/api/v1/disputes')
+      .set('Authorization', `Bearer ${cust.token}`)
+      .send({
+        bookingId,
+        reason: 'POOR_QUALITY',
+        description: 'Paint is already peeling two days after the job was marked as completed.',
+      })
+      .expect(201);
+    const disputeId = createRes.body.data._id || createRes.body.data.id;
+
+    await request(app).post(`/api/v1/disputes/${disputeId}/messages`).set('Authorization', `Bearer ${cust.token}`).send({ body: 'Here is a photo of the peeling paint.' }).expect(200);
+    const afterStaff = await request(app).post(`/api/v1/disputes/${disputeId}/messages`).set('Authorization', `Bearer ${staffToken}`).send({ body: 'Thanks — escalating to the provider for a redo.' }).expect(200);
+    expect(afterStaff.body.data.messages).toHaveLength(2);
+
+    await request(app).post(`/api/v1/disputes/${disputeId}/messages`).set('Authorization', `Bearer ${stranger.token}`).send({ body: 'Nosy.' }).expect(404);
+
+    await request(app).patch(`/api/v1/disputes/${disputeId}`).set('Authorization', `Bearer ${staffToken}`).send({ status: 'UNDER_REVIEW' }).expect(200);
+    await request(app).patch(`/api/v1/disputes/${disputeId}`).set('Authorization', `Bearer ${staffToken}`).send({ status: 'RESOLVED', resolutionNote: 'Provider redo scheduled.' }).expect(200);
+    await request(app).post(`/api/v1/disputes/${disputeId}/messages`).set('Authorization', `Bearer ${cust.token}`).send({ body: 'Too late.' }).expect(422);
   });
 });

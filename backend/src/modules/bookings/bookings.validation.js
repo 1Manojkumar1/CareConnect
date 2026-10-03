@@ -23,6 +23,12 @@ const assignProviderValidation = [
   body('note').optional().trim().isLength({ max: 1000 }),
 ];
 
+const rescheduleValidation = [
+  param('id').isMongoId().withMessage('Invalid booking id.'),
+  body('startAt').notEmpty().withMessage('startAt is required.').isISO8601().withMessage('startAt must be ISO8601.'),
+  body('endAt').notEmpty().withMessage('endAt is required.').isISO8601().withMessage('endAt must be ISO8601.'),
+];
+
 const addEvidenceValidation = [
   param('id').isMongoId().withMessage('Invalid booking id.'),
   body('phase').isIn(['BEFORE', 'DURING', 'AFTER']).withMessage('phase must be BEFORE, DURING, or AFTER.'),
@@ -40,6 +46,7 @@ module.exports = {
   createBookingValidation,
   updateStatusValidation,
   assignProviderValidation,
+  rescheduleValidation,
   addEvidenceValidation,
   listBookingsValidation,
 };

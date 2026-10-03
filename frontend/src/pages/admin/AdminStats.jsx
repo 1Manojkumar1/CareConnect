@@ -27,8 +27,8 @@ export default function AdminStats() {
     load();
   }, []);
 
-  if (loading) return <LoadingBlock message="Loading platform overview..." />;
-  if (error) return <ErrorBlock title="Statistics Unavailable" message={error} onRetry={load} />;
+  if (loading) return <LoadingBlock title="Loading platform overview" />;
+  if (error) return <ErrorBlock title="Statistics Unavailable" description={error} onRetry={load} />;
   if (!stats) return null;
 
   const { users, providers, bookings, financials, disputes } = stats;

@@ -11,6 +11,7 @@
  * ─────────────────────────────────────────────
  *  admin1@gmail.com        ADMIN
  *  ops1@gmail.com          OPERATIONS
+ *  support1@gmail.com      SUPPORT
  *  user1@gmail.com         CUSTOMER
  *  user2@gmail.com         CUSTOMER
  *  provider1@gmail.com     PROVIDER  (Plumbing + Electrical, Austin TX)
@@ -30,6 +31,7 @@ const { Invoice } = require('../models/Invoice');
 const { Review } = require('../models/Review');
 const { Notification } = require('../models/Notification');
 const { Dispute } = require('../models/Dispute');
+const { Ticket } = require('../models/Ticket');
 const { SystemConfig } = require('../models/SystemConfig');
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
@@ -92,7 +94,7 @@ async function seedDemo() {
   const summary = {
     users: 0, providers: 0, requests: 0, quotes: 0,
     bookings: 0, invoices: 0, reviews: 0, disputes: 0,
-    notifications: 0, systemConfig: false,
+    tickets: 0, notifications: 0, systemConfig: false,
   };
 
   // ── 1. System config ─────────────────────────────────────────────────────
@@ -153,6 +155,7 @@ async function seedDemo() {
   for (const spec of [
     { key: 'admin', email: 'admin1@gmail.com', name: 'admin1', role: 'ADMIN', phone: '5550000001' },
     { key: 'ops', email: 'ops1@gmail.com', name: 'ops1', role: 'OPERATIONS', phone: '5550000002' },
+    { key: 'support', email: 'support1@gmail.com', name: 'support1', role: 'SUPPORT', phone: '5550000008' },
     { key: 'user1', email: 'user1@gmail.com', name: 'user1', role: 'CUSTOMER', phone: '5550000003', addresses: [addrUser1] },
     { key: 'user2', email: 'user2@gmail.com', name: 'user2', role: 'CUSTOMER', phone: '5550000004', addresses: [addrUser2] },
     { key: 'provider1', email: 'provider1@gmail.com', name: 'provider1', role: 'PROVIDER', phone: '5550000005' },
@@ -161,8 +164,8 @@ async function seedDemo() {
   ]) {
     users[spec.key] = await upsertUser(spec);
   }
-  const { ops, user1, user2, provider1: provider1User, provider2: provider2User, provider3: provider3User } = users;
-  summary.users = 7;
+  const { ops, support, user1, user2, provider1: provider1User, provider2: provider2User, provider3: provider3User } = users;
+  summary.users = 8;
 
   // ── 4. Provider profiles ──────────────────────────────────────────────────
   const toIds = (arr) => arr.filter(Boolean).map((x) => x._id);
@@ -329,6 +332,23 @@ async function seedDemo() {
   );
   if (rE) summary.requests += 1;
 
+  // [F] OPEN (unquoted, HIGH) — user2 water heater, feeds the ops queue demo
+  const { created: rF } = await findOrCreate(
+    ServiceRequest,
+    { customerId: user2._id, description: /water heater.*leak/i },
+    {
+      customerId: user2._id, categoryId: plumbing._id,
+      description: 'Water heater leaking from the base valve. Small puddle growing since this morning. Need urgent inspection before it floods the garage.',
+      urgency: 'HIGH', budget: { min: 80, max: 300 },
+      address: { ...addrUser2, label: 'Home' },
+      preferredDate: daysFromNow(1), timeWindow: 'MORNING',
+      status: 'OPEN',
+      aiClassification: { category: 'Plumbing', subcategory: 'Water Heater Repair', skills: ['Leak Detection'], confidence: 0.9, status: 'DONE' },
+      history: [{ status: 'OPEN', at: minsAgo(120) }],
+    }
+  );
+  if (rF) summary.requests += 1;
+
   // ── 6. Quotes ─────────────────────────────────────────────────────────────
   // Quote schema: pricing.{ labor, materials, tax, discount, total }, estimatedDurationMin, expiresAt
 
@@ -472,7 +492,7 @@ async function seedDemo() {
   if (bcC) summary.bookings += 1;
 
   // [bD] IN_PROGRESS — user2 / provider3 (refrigerator active right now)
-  const { created: bdC } = await findOrCreate(
+  const { doc: bookingD, created: bdC } = await findOrCreate(
     Booking,
     { requestId: reqD._id, customerId: user2._id },
     {
@@ -574,7 +594,7 @@ async function seedDemo() {
   );
   if (revC) {
     summary.reviews += 1;
-    await ProviderProfile.findByIdAndUpdate(provider1._id, { $set: { ratingAvg: 4.8, reviewCount: 47 } });
+    await ProviderProfile.findByIdAndUpdate(provider1._id, { $set: { ratingAvg: 4.8, ratingCount: 47 } });
   }
 
   // ── 10. Dispute ───────────────────────────────────────────────────────────
@@ -596,7 +616,50 @@ async function seedDemo() {
   );
   if (disC) summary.disputes += 1;
 
-  // ── 11. Notifications ─────────────────────────────────────────────────────
+  // ── 11. Support tickets ───────────────────────────────────────────────────
+  const { created: tickC } = await findOrCreate(
+    Ticket,
+    { subject: 'Provider never arrived for the refrigerator repair' },
+    {
+      subject: 'Provider never arrived for the refrigerator repair',
+      description: 'provider3 was scheduled for this morning but never showed up and did not call. The fridge is still warm and food is spoiling.',
+      category: 'BOOKING_ISSUE',
+      priority: 'HIGH',
+      status: 'IN_PROGRESS',
+      raisedBy: user2._id,
+      assignedTo: support._id,
+      relatedBookingId: bookingD._id,
+      messages: [
+        { sender: user2._id, body: 'provider3 was scheduled for this morning but never showed up and did not call. The fridge is still warm and food is spoiling.', createdAt: daysAgo(1) },
+        { sender: support._id, body: 'Thanks for reporting this — I have paged provider3 and will confirm a new arrival window within the hour.', createdAt: minsAgo(90) },
+      ],
+    }
+  );
+  if (tickC) summary.tickets += 1;
+
+  const { created: tick2C } = await findOrCreate(
+    Ticket,
+    { subject: 'Charged twice for the deep cleaning visit' },
+    {
+      subject: 'Charged twice for the deep cleaning visit',
+      description: 'My card shows two identical charges for the upcoming deep cleaning booking. Please void the duplicate.',
+      category: 'PAYMENT_ISSUE',
+      priority: 'MEDIUM',
+      status: 'RESOLVED',
+      raisedBy: user1._id,
+      assignedTo: support._id,
+      relatedBookingId: bookingC._id,
+      resolutionNote: 'Duplicate authorization voided with the payment processor. Only one charge will settle.',
+      resolvedAt: daysAgo(2),
+      messages: [
+        { sender: user1._id, body: 'My card shows two identical charges for the upcoming deep cleaning booking. Please void the duplicate.', createdAt: daysAgo(3) },
+        { sender: support._id, body: 'Confirmed the duplicate — I have voided the second authorization. Only one charge will settle.', createdAt: daysAgo(2) },
+      ],
+    }
+  );
+  if (tick2C) summary.tickets += 1;
+
+  // ── 12. Notifications ─────────────────────────────────────────────────────
   async function notify(userId, type, title, body, link) {
     const { created } = await findOrCreate(
       Notification,

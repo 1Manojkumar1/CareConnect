@@ -17,8 +17,13 @@ const getDispute = asyncHandler(async (req, res) => {
 });
 
 const updateDispute = asyncHandler(async (req, res) => {
-  const dispute = await disputesService.updateDispute(req.params.id, req.user.id, req.body);
+  const dispute = await disputesService.updateDispute(req.params.id, req.user.id, req.body, req.user.role);
   res.json({ success: true, data: dispute });
 });
 
-module.exports = { createDispute, listDisputes, getDispute, updateDispute };
+const addMessage = asyncHandler(async (req, res) => {
+  const dispute = await disputesService.addDisputeMessage(req.params.id, req.user.id, req.user.role, req.body);
+  res.json({ success: true, data: dispute });
+});
+
+module.exports = { createDispute, listDisputes, getDispute, updateDispute, addMessage };
