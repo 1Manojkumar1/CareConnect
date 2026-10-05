@@ -94,6 +94,32 @@ Estimated first-deploy time: **45–75 minutes** (mostly Atlas + DNS).
 
 ## 6. Step 3 — Bootstrap production data
 
+> **No Render subscription? No problem.** Render Shell is a paid
+> feature — everything below also runs from your laptop against Atlas.
+> That is **Option B** (recommended for demos). Option A (Shell) follows.
+
+### Option B — seed from your laptop (free, no shell needed)
+
+1. Atlas → **Network Access** → Add IP: use `0.0.0.0/0` for demo day
+   (venue wifi changes your IP; tighten it after). Confirm the DB user
+   password.
+2. Atlas → **Connect → Drivers** → copy the `mongodb+srv://…` string.
+3. From `C:\CareConnect\backend` in PowerShell (**nothing is committed
+   from here — `.env` is gitignored**):
+   ```powershell
+   $env:MONGODB_URI = "mongodb+srv://<user>:<password>@cluster0.xxxxx.mongodb.net/careconnect?retryWrites=true&w=majority"
+   npm run seed   # 11 categories, 34 subcategories, 44 skills (idempotent)
+   npm run create-admin -- --email=judge-admin@example.com --password='AdminDemoPass1!' --name='Judge Admin'
+   ```
+   Notes: catalog seed is safe to re-run. `create-admin` needs ≥ 12
+   chars and promotes the user to ADMIN if the email already exists.
+   Admin login password is therefore `AdminDemoPass1!` (demo accounts
+   created later in the UI use whatever you type, min 8).
+4. Verify: open `[APP_URL]/login` → sign in as
+   `judge-admin@example.com` → Dashboard loads, Users shows 1 account.
+
+### Option A — via Render Shell (paid tiers)
+
 1. Seed the service catalog (idempotent, safe to re-run):
    ```bash
    # One-off via Render Shell (Dashboard → Shell tab on the service):
