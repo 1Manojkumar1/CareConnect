@@ -172,6 +172,7 @@ function PrimaryNav({ token, user }) {
       )}
       {token && role === 'ADMIN' && (
         <>
+          <NavLink to="/admin/providers" className={navClass}>Verifications</NavLink>
           <NavLink to="/admin/users" className={navClass}>Users</NavLink>
           <NavLink to="/admin/audit-logs" className={navClass}>Audit</NavLink>
         </>
