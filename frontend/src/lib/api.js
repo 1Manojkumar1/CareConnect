@@ -13,6 +13,9 @@ api.interceptors.request.use((config) => {
   const requestId =
     typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : undefined;
   if (requestId) config.headers['X-Request-Id'] = requestId;
+  if (typeof FormData !== 'undefined' && config.data instanceof FormData) {
+    delete config.headers['Content-Type'];
+  }
   return config;
 });
 
