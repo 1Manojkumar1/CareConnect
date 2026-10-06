@@ -118,7 +118,7 @@ export default function NewRequest() {
   }
 
   function buildPayload(submit) {
-    const address = form.addressMode === 'saved'
+    const address = form.addressMode === 'saved' && form.savedAddressId
       ? { addressId: form.savedAddressId }
       : {
           label: form.customLabel.trim(),

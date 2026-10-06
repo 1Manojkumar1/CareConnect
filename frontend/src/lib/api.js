@@ -38,7 +38,17 @@ export function getApiErrorMessage(error, fallback = 'Something went wrong. Plea
   if (error?.message === 'Network Error' || (!error?.response && error?.request)) {
     return 'Unable to reach the CareConnect server. Please check your internet connection.';
   }
-  return error?.response?.data?.error?.message || error?.message || fallback;
+  const errData = error?.response?.data?.error;
+  if (errData?.details && Array.isArray(errData.details) && errData.details.length > 0) {
+    const detailMsg = errData.details
+      .map((d) => d.message || d.field)
+      .filter(Boolean)
+      .join(', ');
+    if (detailMsg) {
+      return `${errData.message || 'Validation failed'}: ${detailMsg}`;
+    }
+  }
+  return errData?.message || error?.message || fallback;
 }
 
 export { api };

@@ -93,7 +93,7 @@ export default function EditRequest() {
       preferredDate: form.preferredDate,
       timeWindow: form.timeWindow,
     };
-    if (isDraft) {
+    if (isDraft && (form.subcategoryId || form.topCategoryId)) {
       payload.categoryId = form.subcategoryId || form.topCategoryId;
     }
     if (form.savedAddressId) {

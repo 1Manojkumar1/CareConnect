@@ -44,11 +44,15 @@ export async function addRequestAttachment(id, attachment) {
   // Real device files are sent as multipart; plain objects keep the
   // legacy JSON metadata path working.
   let body = attachment;
+  const config = {};
   if (typeof File !== 'undefined' && attachment instanceof File) {
     body = new FormData();
     body.append('file', attachment);
+    config.headers = { 'Content-Type': 'multipart/form-data' };
+  } else if (typeof FormData !== 'undefined' && attachment instanceof FormData) {
+    config.headers = { 'Content-Type': 'multipart/form-data' };
   }
-  const res = await api.post(`/service-requests/${id}/attachments`, body);
+  const res = await api.post(`/service-requests/${id}/attachments`, body, config);
   return res.data.data;
 }
 
