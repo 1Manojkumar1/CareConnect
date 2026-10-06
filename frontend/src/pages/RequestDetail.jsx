@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useDispatch } from 'react-redux';
 import { pushToast } from '../store/uiSlice';
-import { getApiErrorMessage } from '../lib/api';
+import { getApiErrorMessage, getPublicAssetUrl } from '../lib/api';
 import { getRequest, submitRequest, cancelRequest, classifyRequest, findProviders } from '../lib/requests';
 import { listQuotes, createQuote, updateQuote, acceptQuote, rejectQuote, withdrawQuote } from '../lib/quotes';
 import { createBooking } from '../lib/bookings';
@@ -362,7 +362,14 @@ export default function RequestDetail() {
               <Card title={`Attachments (${item.attachments.length})`}>
                 <ul className="grid gap-2">
                   {item.attachments.map((a) => (
-                    <li key={a.id} className="text-sm text-ink">{a.fileName} <span className="text-ink-faint">· {Math.round(a.size / 1024)} KB</span></li>
+                    <li key={a.id} className="flex items-center justify-between gap-3 text-sm text-ink">
+                      <span>{a.fileName} <span className="text-ink-faint">· {Math.round(a.size / 1024)} KB</span></span>
+                      {a.fileUrl && (
+                        <a href={getPublicAssetUrl(a.fileUrl)} target="_blank" rel="noopener noreferrer" className="text-[13px] font-medium text-brand-700 hover:underline">
+                          View
+                        </a>
+                      )}
+                    </li>
                   ))}
                 </ul>
               </Card>

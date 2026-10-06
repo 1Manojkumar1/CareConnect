@@ -3,7 +3,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import { useDispatch } from 'react-redux';
 import { pushToast } from '../store/uiSlice';
-import { getApiErrorMessage } from '../lib/api';
+import { getApiErrorMessage, getPublicAssetUrl } from '../lib/api';
 import { getBooking, updateBookingStatus, addEvidence, rescheduleBooking } from '../lib/bookings';
 import PageHeader from '../components/ui/PageHeader';
 import Badge from '../components/ui/Badge';
@@ -435,7 +435,7 @@ export default function BookingDetail() {
                     {booking.evidence.map((ev) => (
                       <li key={ev._id} className="flex items-start gap-2 text-sm text-ink-muted">
                         <span className="rounded bg-stone-100 px-2 py-0.5 text-[11px] font-semibold uppercase">{ev.phase}</span>
-                        <a href={ev.fileUrl} target="_blank" rel="noreferrer" className="break-all text-brand-700 hover:underline">
+                        <a href={getPublicAssetUrl(ev.fileUrl)} target="_blank" rel="noreferrer" className="break-all text-brand-700 hover:underline">
                           {ev.fileUrl}
                         </a>
                         {ev.note && <span>· {ev.note}</span>}

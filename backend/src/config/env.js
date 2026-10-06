@@ -49,7 +49,11 @@ const env = {
   smtpFrom: process.env.SMTP_FROM || 'CareConnect <no-reply@careconnect.local>',
   uploadDir: process.env.UPLOAD_DIR || 'uploads',
   uploadMaxMb: parseInt(process.env.UPLOAD_MAX_MB || '10', 10),
-  publicBaseUrl: (process.env.API_PUBLIC_URL || `http://localhost:${parseInt(process.env.PORT || '5000', 10)}`).replace(/\/$/, ''),
+  publicBaseUrl: (
+    process.env.API_PUBLIC_URL ||
+    process.env.RENDER_EXTERNAL_URL ||
+    `http://localhost:${parseInt(process.env.PORT || '5000', 10)}`
+  ).replace(/\/$/, ''),
 };
 
 function assertProdSecrets() {

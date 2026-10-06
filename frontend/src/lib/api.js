@@ -54,5 +54,22 @@ export function getApiErrorMessage(error, fallback = 'Something went wrong. Plea
   return errData?.message || error?.message || fallback;
 }
 
+export function getPublicAssetUrl(url) {
+  if (!url) return '';
+  const apiBase = import.meta.env.VITE_API_URL || '';
+  if (apiBase) {
+    try {
+      const apiOrigin = new URL(apiBase).origin;
+      if (!apiBase.includes('localhost') && /^https?:\/\/localhost(:\d+)?\//i.test(url)) {
+        return url.replace(/^https?:\/\/localhost(:\d+)?/i, apiOrigin);
+      }
+      if (url.startsWith('/uploads/')) {
+        return `${apiOrigin}${url}`;
+      }
+    } catch {}
+  }
+  return url;
+}
+
 export { api };
 export default api;

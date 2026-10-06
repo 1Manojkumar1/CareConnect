@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import api, { getApiErrorMessage } from '../lib/api';
+import api, { getApiErrorMessage, getPublicAssetUrl } from '../lib/api';
 import PageHeader from '../components/ui/PageHeader';
 import Badge from '../components/ui/Badge';
 import Card from '../components/ui/Card';
@@ -88,7 +88,7 @@ export default function PublicProvider() {
                     <li key={d.id} className="flex items-center justify-between gap-3 rounded border border-stone-200 bg-white px-3 py-2">
                       <span>{d.fileName} <span className="text-ink-faint">· {Math.round(d.size / 1024)} KB</span></span>
                       {d.fileUrl && (
-                        <a href={d.fileUrl} target="_blank" rel="noopener noreferrer" className="text-[13px] font-medium text-brand-700 hover:underline">
+                        <a href={getPublicAssetUrl(d.fileUrl)} target="_blank" rel="noopener noreferrer" className="text-[13px] font-medium text-brand-700 hover:underline">
                           View
                         </a>
                       )}

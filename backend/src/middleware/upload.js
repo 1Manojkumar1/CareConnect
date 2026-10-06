@@ -94,8 +94,13 @@ function mergeUploadedFile(req, _res, next) {
 
 function toPublicFileUrl(storageKey) {
   if (!storageKey) return '';
-  if (/^https?:\/\//i.test(storageKey)) return storageKey;
   const base = (env.publicBaseUrl || '').replace(/\/$/, '');
+  if (/^https?:\/\//i.test(storageKey)) {
+    if (base && !base.includes('localhost') && /^https?:\/\/localhost(:\d+)?\//i.test(storageKey)) {
+      return storageKey.replace(/^https?:\/\/localhost(:\d+)?/i, base);
+    }
+    return storageKey;
+  }
   return `${base}/uploads/${storageKey.replace(/^\/+/, '')}`;
 }
 
