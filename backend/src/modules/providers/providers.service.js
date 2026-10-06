@@ -337,15 +337,23 @@ async function listProviders({
   };
 }
 
-async function getPublicProfile(profileId) {
+async function getPublicProfile(profileId, user = null) {
   const profile = await populateRefs(ProviderProfile.findById(profileId));
-  if (!profile || profile.verificationStatus !== 'VERIFIED') {
+  if (!profile) {
     throw ApiError.notFound('PROVIDER_NOT_FOUND', 'Provider not found.');
   }
-  if (profile.userId && profile.userId.status !== 'ACTIVE') {
+  const isPrivileged =
+    user &&
+    (['ADMIN', 'OPERATIONS'].includes(user.role) ||
+      String(profile.userId?._id || profile.userId) === String(user.id));
+
+  if (!isPrivileged && profile.verificationStatus !== 'VERIFIED') {
     throw ApiError.notFound('PROVIDER_NOT_FOUND', 'Provider not found.');
   }
-  return serializePublic(profile);
+  if (!isPrivileged && profile.userId && profile.userId.status !== 'ACTIVE') {
+    throw ApiError.notFound('PROVIDER_NOT_FOUND', 'Provider not found.');
+  }
+  return isPrivileged ? serializeOwn(profile) : serializePublic(profile);
 }
 
 module.exports = {

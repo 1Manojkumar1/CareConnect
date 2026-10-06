@@ -55,7 +55,7 @@ export default function PublicProvider() {
           <div className="grid gap-4">
             <Card title={provider.user.name} description={`${provider.experienceYears} yrs experience`}>
               <div className="flex flex-wrap items-center gap-2">
-                <Badge status="VERIFIED" />
+                <Badge status={provider.verificationStatus || 'VERIFIED'} />
                 {provider.acceptingJobs ? <Badge tone="success">Accepting jobs</Badge> : <Badge tone="neutral">Not accepting jobs</Badge>}
                 {provider.ratingCount > 0 && <span className="text-sm text-ink-muted">★ {provider.ratingAvg.toFixed(1)} ({provider.ratingCount})</span>}
               </div>
@@ -80,6 +80,23 @@ export default function PublicProvider() {
                 </div>
               </dl>
             </Card>
+
+            {provider.documents && provider.documents.length > 0 && (
+              <Card title="Verification documents" description="Submitted licenses and certifications">
+                <ul className="grid gap-2 text-sm">
+                  {provider.documents.map((d) => (
+                    <li key={d.id} className="flex items-center justify-between gap-3 rounded border border-stone-200 bg-white px-3 py-2">
+                      <span>{d.fileName} <span className="text-ink-faint">· {Math.round(d.size / 1024)} KB</span></span>
+                      {d.fileUrl && (
+                        <a href={d.fileUrl} target="_blank" rel="noopener noreferrer" className="text-[13px] font-medium text-brand-700 hover:underline">
+                          View
+                        </a>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </Card>
+            )}
 
             {schedule?.workingHours && (
               <Card

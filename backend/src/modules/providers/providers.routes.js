@@ -1,5 +1,5 @@
 const { Router } = require('express');
-const { authenticate } = require('../../middleware/auth');
+const { authenticate, optionalAuthenticate } = require('../../middleware/auth');
 const { authorize } = require('../../middleware/authorize');
 const { validate } = require('../../middleware/validate');
 const { uploadFile, mergeUploadedFile, DOCUMENT_MIMES } = require('../../middleware/upload');
@@ -8,9 +8,9 @@ const v = require('./providers.validation');
 
 const router = Router();
 
-// Public marketplace browsing (only VERIFIED profiles are visible by default).
+// Public marketplace browsing (only VERIFIED profiles are visible by default; admins/owners can preview).
 router.get('/', v.listProvidersValidation, validate, controller.listProviders);
-router.get('/:id', controller.getPublicProfile);
+router.get('/:id', optionalAuthenticate, controller.getPublicProfile);
 
 // Provider self-service
 router.get(

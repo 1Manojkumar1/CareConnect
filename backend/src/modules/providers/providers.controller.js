@@ -53,7 +53,7 @@ const listProviders = asyncHandler(async (req, res) => {
 });
 
 const getPublicProfile = asyncHandler(async (req, res) => {
-  ok(res, await service.getPublicProfile(req.params.id));
+  ok(res, await service.getPublicProfile(req.params.id, req.user));
 });
 
 module.exports = {
